@@ -163,7 +163,8 @@ int main(int argc, char ** argv) {
   // now construct gamma^0
   g0.read_local(&npair, &indices, &pairs);
   for(int i=0; i<npair; ++i){
-    if( i == 2 || i == 7 || i == 8 || i == 13 ){
+    if( indices[i] == 2 || indices[i] == 7 || 
+        indices[i] == 8 || indices[i] == 13 ){
       pairs[i] = 1.0;
     } else {
       pairs[i] = 0.0;
@@ -174,9 +175,9 @@ int main(int argc, char ** argv) {
   // and tau^3
   tau3.read_local(&npair, &indices, &pairs);
   for(int i=0; i<npair; ++i){
-    if( i == 0 ){
+    if( indices[i] == 0 ){
       pairs[i] = 1.0;
-    } else if ( i == 3){
+    } else if ( indices[i] == 3){
       pairs[i] = -1.0;
     } else {
       pairs[i] = 0.0;
