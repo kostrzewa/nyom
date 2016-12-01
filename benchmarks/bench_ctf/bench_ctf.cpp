@@ -11,11 +11,9 @@
 #define Ds 4
 #define Cs 3
 #define Fs 2
-#define Ss 4
-#define Xs 256
 
-#define Ts 8
-#define Ls 4
+#define Ts 16
+#define Ls 8
 
 using namespace CTF;
 using namespace std;
@@ -122,7 +120,7 @@ int main(int argc, char ** argv) {
   // construct time-shift marix (minus one unit)
   Tshift_m1.read_local(&npair, &indices, &pairs);
   for(int i=0; i<npair; ++i){
-    // ctf uses row-major storage
+    // here, the "row" index runs fastest
     int r = indices[i] % Ts;
     int c = indices[i] / Ts;
 
@@ -152,15 +150,15 @@ int main(int argc, char ** argv) {
   // construct time shifted fields
   U_m1["txyzab"] = Tshift_m1["tT"]*U["Txyzab"];
   U_m2["txyzab"] = Tshift_m2["tT"]*U["Txyzab"];
-  
+
   Phi_m1["txyzfg"] = Tshift_m1["tT"]*Phi["Txyzfg"];
   Phi_m2["txyzfg"] = Tshift_m2["tT"]*Phi["Txyzfg"];
 
   S1_m1["txyzfgjkab"] = Tshift_m1["tT"]*S1["Txyzfgjkab"];
-  S1_m1["txyzfgjkab"] = Tshift_m1["tT"]*S2["Txyzfgjkab"];
+  S2_m1["txyzfgjkab"] = Tshift_m1["tT"]*S2["Txyzfgjkab"];
 
   S1_m2["txyzfgjkab"] = Tshift_m2["tT"]*S1["Txyzfgjkab"];
-  S1_m2["txyzfgjkab"] = Tshift_m2["tT"]*S2["Txyzfgjkab"];
+  S2_m2["txyzfgjkab"] = Tshift_m2["tT"]*S2["Txyzfgjkab"];
 
   // now construct gamma^0
   g0.read_local(&npair, &indices, &pairs);
@@ -202,7 +200,7 @@ int main(int argc, char ** argv) {
   Vector< std::complex<double> > C(Ts,dw);
 
   C["t"] = S_f1["tXYZFGIJAB"]*S_f2["tXYZFGIJAB"];
-  C.print(); // empty?
+  C.print();
 
   return 0;
 }
