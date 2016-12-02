@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 #include <ctf.hpp>
 
@@ -147,19 +148,6 @@ int main(int argc, char ** argv) {
   Tshift_m2.write(npair, indices, pairs);
   free(pairs); free(indices);
   
-  // construct time shifted fields
-  U_m1["txyzab"] = Tshift_m1["tT"]*U["Txyzab"];
-  U_m2["txyzab"] = Tshift_m2["tT"]*U["Txyzab"];
-
-  Phi_m1["txyzfg"] = Tshift_m1["tT"]*Phi["Txyzfg"];
-  Phi_m2["txyzfg"] = Tshift_m2["tT"]*Phi["Txyzfg"];
-
-  S1_m1["txyzfgjkab"] = Tshift_m1["tT"]*S1["Txyzfgjkab"];
-  S2_m1["txyzfgjkab"] = Tshift_m1["tT"]*S2["Txyzfgjkab"];
-
-  S1_m2["txyzfgjkab"] = Tshift_m2["tT"]*S1["Txyzfgjkab"];
-  S2_m2["txyzfgjkab"] = Tshift_m2["tT"]*S2["Txyzfgjkab"];
-
   // now construct gamma^0
   g0.read_local(&npair, &indices, &pairs);
   for(int i=0; i<npair; ++i){
@@ -186,6 +174,24 @@ int main(int argc, char ** argv) {
   tau3.write(npair, indices, pairs);
   free(pairs); free(indices);
  
+  std::chrono::time_point<std::chrono::steady_clock> start;
+  std::chrono::duration<float> elapsed_seconds;
+
+  start = std::chrono::steady_clock::now();
+  
+  // construct time shifted fields
+  U_m1["txyzab"] = Tshift_m1["tT"]*U["Txyzab"];
+  U_m2["txyzab"] = Tshift_m2["tT"]*U["Txyzab"];
+
+  Phi_m1["txyzfg"] = Tshift_m1["tT"]*Phi["Txyzfg"];
+  Phi_m2["txyzfg"] = Tshift_m2["tT"]*Phi["Txyzfg"];
+
+  S1_m1["txyzfgjkab"] = Tshift_m1["tT"]*S1["Txyzfgjkab"];
+  S2_m1["txyzfgjkab"] = Tshift_m1["tT"]*S2["Txyzfgjkab"];
+
+  S1_m2["txyzfgjkab"] = Tshift_m2["tT"]*S1["Txyzfgjkab"];
+  S2_m2["txyzfgjkab"] = Tshift_m2["tT"]*S2["Txyzfgjkab"];
+
   U_t1["txyzab"] = U_m2["txyzaC"]*U_m1["txyzCb"];
   Phi_t1["txyzfg"] = 0.5*Phi_m1["txyzfX"]*tau3["Xg"];
 
@@ -201,6 +207,11 @@ int main(int argc, char ** argv) {
   Vector< std::complex<double> > C(Ts,dw);
 
   C["t"] = S_f1["tXYZFGIJAB"]*S_f2["tXYZFGIJAB"];
+
+  elapsed_seconds = std::chrono::steady_clock::now()-start;
+
+  cout << "Contraction took " << elapsed_seconds.count() << " seconds" << std::endl;
+
   C.print();
 
   return 0;
