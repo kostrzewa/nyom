@@ -1,25 +1,37 @@
 top_srcdir = ../..
 
-INCL=-I$(HOME)/code/ctf/include/
-LIBS=-L$(HOME)/code/ctf/lib -lctf -lblas -llapack
+CTF_DIR=$(HOME)/code/ctf/include/
+TMLQCD_BUILDDIR=/home/bartek/code/build/tmLQCD.etmc/build_hybrid_4D
+TMLQCD_SRCDIR=/home/bartek/code/tmLQCD.etmc2
+TMLQCD_LIBS=-lwrapper -lhmc -lmonomial -loperator -lmeas -lsolver -linit -llinalg -lhmc -lxchange -lrational -lio -lblas -llapack -lm -llime -gfortran
+LIMEDIR=$(HOME)/local/lime_gcc
+
+INCL=-I$(CTF_DIR) -I${TMLQCD_SRCDIR}/include/ -I${TMLQCD_BUILDDIR} -I${LIMEDIR}/include/
+LIBS=-L$(HOME)/code/ctf/lib -L$(LIMEDIR)/lib -L${TMLQCD_BUILDDIR}/lib -lctf -lblas -llapack ${TMLQCD_LIBS} #${TMLQCD_BUILDDIR}/read_input.o 
 
 CXX = mpicxx.mpich
-#CXXFLAGS = -funroll-loops -fopenmp -O3 -mtune=core2 -march=core2 -m64 -msse4.2 -g -ggdb -std=gnu++11 -ftree-vectorize -fopt-info-vec-missed-optimized=output.opt
-CXXFLAGS = -std=c++11 -D_POSIX_C_SOURCE=200112L -D__STDC_LIMIT_MACROS -DFTN_UNDERSCORE=1 -fopenmp 
-LDFLAGS = -fopenmp 
+CXXFLAGS = -std=c++11 -D_POSIX_C_SOURCE=200112L -D__STDC_LIMIT_MACROS -DFTN_UNDERSCORE=1 -fopenmp
+LDFLAGS = -fopenmp
 
-OBJS = bench_ctf.o ranlxd.o
+LINK=${CXX} -o $@ ${LDFLAGS}
 
-all: bench_ctf
+EXT_C_MODULES=ranlxd
+MODULES=
+PROGRAMS=bench_ctf pion_2pt_ctf
 
-bench_ctf: $(OBJS)
-	$(CXX) $(LDFLAGS) $(OBJS) $(LIBS) -o bench_ctf
+all: ${PROGRAMS}
 
-bench_ctf.o: bench_ctf.cpp
-	$(CXX) $(CXXFLAGS) $(INCL) -c bench_ctf.cpp
+$(addsuffix .o, ${PROGRAMS}): %.o: %.cpp Makefile
+	${CXX} ${CXXFLAGS} ${INCL} -c $<
 
-ranlxd.o: $(top_srcdir)/external/ranlxd.c $(top_srcdir)/external/ranlxd.h
-	$(CXX) $(CXXFLAGS) $(INCL) -c $(top_srcdir)/external/ranlxd.c
+$(addsuffix .o, ${MODULES}): %.o: %.cpp Makefile
+	${CXX} ${CXXFLAGS} ${INCL} -c $<
+
+${PROGRAMS}: %: %.o $(addsuffix .o, ${EXT_C_MODULES}) Makefile
+	${LINK} $(addsuffix .o,${MODULES}) $(addsuffix .o ,${EXT_C_MODULES}) $@.o ${LIBS}
+
+$(addsuffix .o,${EXT_C_MODULES}): %.o: ${top_srcdir}/external/%.c ${top_srcdir}/external/%.h Makefile
+	${CXX} ${CXXFLAGS} ${INCL} -c $<
 
 clean:
 	rm bench_ctf
