@@ -97,7 +97,7 @@ int main(int argc, char ** argv) {
 
   spinor ** temp_field = NULL;
   init_solver_field(&temp_field,VOLUMEPLUSRAND,2);
-  tmLQCD_read_gauge(100);
+  tmLQCD_read_gauge(lat.nstore);
   indices = (int64_t*) calloc(4*3*VOLUME, sizeof(int64_t));
   pairs = (std::complex<double>*) calloc(4*3*VOLUME, sizeof(std::complex<double>));
   for(int src_s = 0; src_s < 4; ++src_s){
@@ -152,10 +152,14 @@ int main(int argc, char ** argv) {
   // perform contraction
   Vector< std::complex<double> > C(Ts,dw);
   moment = std::chrono::steady_clock::now();
-  C["t"] = Sconj["tXYZIJAB"]*S["tXYZIJAB"];
+  C["t"] = Sconj["tXYZJIBA"]*S["tXYZIJAB"];
   double cntr_time = timeDiffAndUpdate(moment,"2-pt contraction",rank);
+  // 4 FP ops per complex multiplication
+  // 2*(3*(L-1) + (C-1) + (D-1) ) additions to sum contraction of each index
+  // 12 additions : (7 indices are contracted -> 7-1 complex additions for the sum)
+  // repeated T times
   if(rank==0)
-    printf("Performance: %.6e mflops\n", 6*Ls*Ls*Ls*Ds*Ds*Cs*Cs/(cntr_time*1e6));
+    printf("Performance: %.6e mflops\n", (double)Ts*( 12 + 4*(double)Ls*Ls*Ls*Ds*Ds*Cs*Cs + 2*( 3*(Ls-1) + (Cs-1) + (Ds-1) )  )/(cntr_time*1e6));
 
   elapsed_seconds = std::chrono::steady_clock::now()-start;
   

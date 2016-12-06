@@ -1,17 +1,17 @@
 top_srcdir = ../..
 
 CTF_DIR=$(HOME)/code/ctf/include/
-TMLQCD_BUILDDIR=/home/bartek/code/build/tmLQCD.etmc/build_hybrid_4D
+TMLQCD_BUILDDIR=/home/bartek/code/build/tmLQCD.etmc/build_mpi_1D
 TMLQCD_SRCDIR=/home/bartek/code/tmLQCD.etmc2
-TMLQCD_LIBS=-lwrapper -lhmc -lmonomial -loperator -lmeas -lsolver -linit -llinalg -lhmc -lxchange -lrational -lio -lblas -llapack -lm -llime -gfortran
+TMLQCD_LIBS=-lwrapper -lhmc -lmonomial -loperator -lmeas -lsolver -linit -llinalg -lhmc -lxchange -lrational -lio -lblas -llapack -lm -llime -gfortran -lDDalphaAMG
 LIMEDIR=$(HOME)/local/lime_gcc
 
 INCL=-I$(CTF_DIR) -I${TMLQCD_SRCDIR}/ -I${TMLQCD_SRCDIR}/include/ -I${TMLQCD_BUILDDIR} -I${LIMEDIR}/include/
-LIBS=-L$(HOME)/code/ctf/lib -L$(LIMEDIR)/lib -L${TMLQCD_BUILDDIR}/lib -lctf -lblas -llapack ${TMLQCD_LIBS} #${TMLQCD_BUILDDIR}/read_input.o 
+LIBS=-L${HOME}/code/DDalphaAMG/lib -L$(HOME)/code/ctf/lib -L$(LIMEDIR)/lib -L${TMLQCD_BUILDDIR}/lib -lctf -lblas -llapack ${TMLQCD_LIBS} #${TMLQCD_BUILDDIR}/read_input.o 
 
 CXX = mpicxx.mpich
-CXXFLAGS = -std=c++11 -D_POSIX_C_SOURCE=200112L -D__STDC_LIMIT_MACROS -DFTN_UNDERSCORE=1 -fopenmp
-LDFLAGS = -fopenmp
+CXXFLAGS = -std=c++11 -D_POSIX_C_SOURCE=200112L -D__STDC_LIMIT_MACROS -DFTN_UNDERSCORE=1
+LDFLAGS =
 
 LINK=${CXX} -o $@ ${LDFLAGS}
 
