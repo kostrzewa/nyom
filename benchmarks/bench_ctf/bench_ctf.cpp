@@ -109,28 +109,28 @@ int main(int argc, char ** argv) {
   int64_t  npair;
 
   U.read_local(&npair, &indices, &pairs);
-  for(int i=0; i<npair; ++i){
+  for(int64_t i=0; i<npair; ++i){
     pairs[i]=std::complex<double>(drand48(),drand48());
   }
   U.write(npair, indices, pairs);
   free(pairs); free(indices);
   
   S1.read_local(&npair, &indices, &pairs);
-  for(int i=0; i<npair; ++i){
+  for(int64_t i=0; i<npair; ++i){
     pairs[i]=std::complex<double>(drand48(),drand48());
   }
   S1.write(npair, indices, pairs);
   free(pairs); free(indices);
 
   S2.read_local(&npair, &indices, &pairs);
-  for(int i=0; i<npair; ++i){
+  for(int64_t i=0; i<npair; ++i){
     pairs[i]=std::complex<double>(drand48(),drand48());
   }
   S2.write(npair, indices, pairs);
   free(pairs); free(indices);
 
   Phi.read_local(&npair, &indices, &pairs);
-  for(int i=0; i<npair; ++i){
+  for(int64_t i=0; i<npair; ++i){
     pairs[i]=std::complex<double>(drand48(),drand48());
   }
   Phi.write(npair, indices, pairs);
@@ -138,10 +138,10 @@ int main(int argc, char ** argv) {
 
   // construct time-shift marix (minus one unit)
   Tshift_m1.read_local(&npair, &indices, &pairs);
-  for(int i=0; i<npair; ++i){
+  for(int64_t i=0; i<npair; ++i){
     // here, the "row" index runs fastest
-    int r = indices[i] % Ts;
-    int c = indices[i] / Ts;
+    int64_t r = indices[i] % Ts;
+    int64_t c = indices[i] / Ts;
 
     if( c == ((r-1)+Ts) % Ts ){
       pairs[i] = 1.0;
@@ -154,9 +154,9 @@ int main(int argc, char ** argv) {
 
   // construct time-shift matrix (minus two units)
   Tshift_m2.read_local(&npair, &indices, &pairs);
-  for(int i=0; i<npair; ++i){
-    int r = indices[i] % Ts;
-    int c = indices[i] / Ts;
+  for(int64_t i=0; i<npair; ++i){
+    int64_t r = indices[i] % Ts;
+    int64_t c = indices[i] / Ts;
     if( c == ((r-2)+Ts) % Ts ){
       pairs[i] = 1;
     } else {
@@ -168,7 +168,7 @@ int main(int argc, char ** argv) {
   
   // now construct gamma^0
   g0.read_local(&npair, &indices, &pairs);
-  for(int i=0; i<npair; ++i){
+  for(int64_t i=0; i<npair; ++i){
     if( indices[i] == 2 || indices[i] == 7 || 
         indices[i] == 8 || indices[i] == 13 ){
       pairs[i] = 1.0;
@@ -180,7 +180,7 @@ int main(int argc, char ** argv) {
   free(pairs); free(indices);
   // and tau^3
   tau3.read_local(&npair, &indices, &pairs);
-  for(int i=0; i<npair; ++i){
+  for(int64_t i=0; i<npair; ++i){
     if( indices[i] == 0 ){
       pairs[i] = 1.0;
     } else if ( indices[i] == 3){
