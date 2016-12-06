@@ -18,23 +18,25 @@
 using namespace CTF;
 using namespace std;
 
-void timeDiff(
+double timeDiff(
         const std::chrono::time_point<std::chrono::steady_clock>& time, 
         const char* const name,
         const int rank){
-  std::chrono::duration<float> elapsed_seconds = std::chrono::steady_clock::now() - time;
+  std::chrono::duration<double> elapsed_seconds = std::chrono::steady_clock::now() - time;
   if(rank==0){ 
     cout << "Time for " << name << " " << elapsed_seconds.count() <<
       " seconds" << std::endl;
   }
+  return(elapsed_seconds.count());
 }
 
-void timeDiffAndUpdate(
+double timeDiffAndUpdate(
         std::chrono::time_point<std::chrono::steady_clock>& time, 
         const char* const name,
         const int rank){
-  timeDiff(time,name,rank);
+  double rval = timeDiff(time,name,rank);
   time = std::chrono::steady_clock::now();
+  return(rval);
 }
 
 int main(int argc, char ** argv) {
@@ -149,7 +151,11 @@ int main(int argc, char ** argv) {
   
   // perform contraction
   Vector< std::complex<double> > C(Ts,dw);
+  moment = std::chrono::steady_clock::now();
   C["t"] = Sconj["tXYZIJAB"]*S["tXYZIJAB"];
+  double cntr_time = timeDiffAndUpdate(moment,"2-pt contraction",rank);
+  if(rank==0)
+    printf("Performance: %.6e mflops\n", 6*Ls*Ls*Ls*Ds*Ds*Cs*Cs/(cntr_time*1e6));
 
   elapsed_seconds = std::chrono::steady_clock::now()-start;
   
