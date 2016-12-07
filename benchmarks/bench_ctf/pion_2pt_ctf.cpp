@@ -119,7 +119,7 @@ int main(int argc, char ** argv) {
               int gz = LZ*mpi.proc_coords[3] + z;
               for(int prop_s = 0; prop_s < Ds; ++prop_s){
                 for(int prop_c = 0; prop_c < Cs; ++prop_c){
-                  // global Cyclops index for S
+                  // global Cyclops index for S, leftmost index runs fastest
                   indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
                                      prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
                                      src_s  * (Ts*Ls*Ls*Ls*Ds)       +
@@ -145,14 +145,16 @@ int main(int argc, char ** argv) {
   free(indices); free(pairs);
   finalize_solver(temp_field,2);
  
-  // take complex conjugate of S
-  Sconj["txyzijab"] = S["txyzijab"];
+  // take hermitian conjugate of S in spin and colour
+  moment = std::chrono::steady_clock::now();
+  Sconj["txyzjiba"] = S["txyzijab"];
   ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
-  
+  timeDiffAndUpdate(moment,"conjugation",rank);
+
   // perform contraction
   Vector< std::complex<double> > C(Ts,dw);
   moment = std::chrono::steady_clock::now();
-  C["t"] = Sconj["tXYZJIBA"]*S["tXYZIJAB"];
+  C["t"] = Sconj["tXYZIJAB"]*S["tXYZIJAB"];
   double cntr_time = timeDiffAndUpdate(moment,"2-pt contraction",rank);
   // 4 FP ops per complex multiplication
   // 2*(3*(L-1) + (C-1) + (D-1) ) additions to sum contraction of each index
