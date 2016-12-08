@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <iostream>
+#include <fstream>
 #include <chrono>
 
 #include <ctf.hpp>
@@ -10,10 +11,6 @@
 #include "../../external/ranlxd.h"
 
 #include "tmLQCD.h"
-
-#define Ds 4
-#define Cs 3
-#define Fs 2
 
 using namespace CTF;
 using namespace std;
@@ -76,10 +73,15 @@ int main(int argc, char ** argv) {
 
   World dw(argc, argv);
 
-  int Ls = mpi.nproc_x * LX;
-  int Ts = mpi.nproc_t * T;
+  // prevent integer overflows further down the line
+  size_t Ds = 4;
+  size_t Cs = 3;
+  size_t Fs = 2;
+  size_t Ls = mpi.nproc_x * LX;
+  size_t Ts = mpi.nproc_t * T;
 
   int prop_sizes[8] = { Ts, Ls, Ls, Ls, Ds, Ds, Cs, Cs };
+  //int prop_sizes[8] = { Cs, Cs, Ds, Ds, Ls, Ls, Ls, Ts };
   int prop_shapes[8] = { NS, NS, NS, NS, NS, NS, NS, NS };
  
   Tensor< std::complex<double> > S(8, prop_sizes, prop_shapes, dw);
@@ -97,29 +99,43 @@ int main(int argc, char ** argv) {
 
   spinor ** temp_field = NULL;
   init_solver_field(&temp_field,VOLUMEPLUSRAND,2);
-  tmLQCD_read_gauge(lat.nstore);
+
+  // read propagators from file(s)? if yes, don't need to load gauge field
+  bool read = true;
+  if(read==false) tmLQCD_read_gauge(lat.nstore);
+  
   indices = (int64_t*) calloc(4*3*VOLUME, sizeof(int64_t));
   pairs = (std::complex<double>*) calloc(4*3*VOLUME, sizeof(std::complex<double>));
-  for(int src_s = 0; src_s < 4; ++src_s){
-    for(int src_c = 0; src_c < 3; ++src_c){ 
-      source_spinor_field(g_spinor_field[0],g_spinor_field[1], src_s, src_c);
-      convert_eo_to_lexic(temp_field[1],g_spinor_field[0],g_spinor_field[1]);
-      moment = std::chrono::steady_clock::now();
-      tmLQCD_invert((double*)temp_field[0],(double*)temp_field[1],0,0);
-      timeDiffAndUpdate(moment,"inversion",rank);
+  for(size_t src_s = 0; src_s < Ds; ++src_s){
+    for(size_t src_c = 0; src_c < Cs; ++src_c){
+      if(read == false){ 
+        source_spinor_field(g_spinor_field[0],g_spinor_field[1], src_s, src_c);
+        convert_eo_to_lexic(temp_field[1],g_spinor_field[0],g_spinor_field[1]);
+        moment = std::chrono::steady_clock::now();
+        tmLQCD_invert((double*)temp_field[0],(double*)temp_field[1],0,1);
+        timeDiffAndUpdate(moment,"inversion",rank);
+      }else{ 
+        read_spinor(g_spinor_field[0],g_spinor_field[1],"source.0000.00.inverted", (int)(src_s*Cs+src_c) );
+        convert_eo_to_lexic(temp_field[0],g_spinor_field[0],g_spinor_field[1]);
+      }
       // globally translate from tmLQCD to Cyclops
-      int counter = 0;
-      for(int t = 0; t < T; ++t){
-        int gt = T*mpi.proc_coords[0] + t;
-        for(int x = 0; x < LX; ++x){
-          int gx = LX*mpi.proc_coords[1] + x;
-          for(int y = 0; y < LY; ++y){
-            int gy = LY*mpi.proc_coords[2] + y;
-            for(int z = 0; z < LZ; ++z){
-              int gz = LZ*mpi.proc_coords[3] + z;
-              for(int prop_s = 0; prop_s < Ds; ++prop_s){
-                for(int prop_c = 0; prop_c < Cs; ++prop_c){
-                  // global Cyclops index for S
+      moment = std::chrono::steady_clock::now();
+      int64_t counter = 0;
+      for(size_t t = 0; t < T; ++t){
+        size_t gt = T*mpi.proc_coords[0] + t;
+
+        for(size_t x = 0; x < LX; ++x){
+          size_t gx = LX*mpi.proc_coords[1] + x;
+
+          for(size_t y = 0; y < LY; ++y){
+            size_t gy = LY*mpi.proc_coords[2] + y;
+
+            for(size_t z = 0; z < LZ; ++z){
+              size_t gz = LZ*mpi.proc_coords[3] + z;
+
+              for(size_t prop_s = 0; prop_s < Ds; ++prop_s){
+                for(size_t prop_c = 0; prop_c < Cs; ++prop_c){
+                  // global Cyclops index for S, leftmost tensor index runs fastest
                   indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
                                      prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
                                      src_s  * (Ts*Ls*Ls*Ls*Ds)       +
@@ -128,8 +144,10 @@ int main(int argc, char ** argv) {
                                      gy     * (Ts*Ls)                +
                                      gx     * (Ts)                   +
                                      gt;
-
-                  pairs[counter] = *((_Complex double*)(temp_field[0] + g_ipt[t][x][y][z] + prop_s*Cs + prop_c));
+                  
+                  // the following caused such a bad headache... need to write a clean wrapper for this which
+                  // deals with the struct directly instead of doing two different pointer arithmetics in one line...
+                  pairs[counter] = *( ((_Complex double*)(temp_field[0] + g_ipt[t][x][y][z])) + prop_s*Cs + prop_c );
                   counter++;
                 }
               }
@@ -148,18 +166,24 @@ int main(int argc, char ** argv) {
   // take complex conjugate of S
   Sconj["txyzijab"] = S["txyzijab"];
   ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
-  
+
   // perform contraction
   Vector< std::complex<double> > C(Ts,dw);
   moment = std::chrono::steady_clock::now();
-  C["t"] = Sconj["tXYZJIBA"]*S["tXYZIJAB"];
+  Flop_counter flp;
+  flp.zero();
+  C["t"] = Sconj["tXYZIJAB"]*S["tXYZIJAB"];
   double cntr_time = timeDiffAndUpdate(moment,"2-pt contraction",rank);
+  int64_t flops = flp.count( MPI_COMM_WORLD );
+  // naive number of FP ops
   // 4 FP ops per complex multiplication
-  // 2*(3*(L-1) + (C-1) + (D-1) ) additions to sum contraction of each index
+  // 2*(3*(L-1) + (C-1) + (D-1) ) additions to sum contraction of all indices
   // 12 additions : (7 indices are contracted -> 7-1 complex additions for the sum)
   // repeated T times
-  if(rank==0)
-    printf("Performance: %.6e mflops\n", (double)Ts*( 12 + 4*(double)Ls*Ls*Ls*Ds*Ds*Cs*Cs + 2*( 3*(Ls-1) + (Cs-1) + (Ds-1) )  )/(cntr_time*1e6));
+  if(rank==0){
+    printf("Naive Performance: %.6e mflop/s\n", (double)Ts*( 12 + 4*(double)Ls*Ls*Ls*Ds*Ds*Cs*Cs + 2*( 3*(Ls-1) + (Cs-1) + (Ds-1) )  )/(cntr_time*1e6));
+    printf("'True' (Cyclops) Performance: %.6e mflop/s\n", (double)(flops)/(cntr_time*1e6));
+  }
 
   elapsed_seconds = std::chrono::steady_clock::now()-start;
   
@@ -167,7 +191,19 @@ int main(int argc, char ** argv) {
     cout << "Pion 2-pt function took " << elapsed_seconds.count() << " seconds" << std::endl;
 
   C.print();
+
+  double norm = 1.0/((double)Ls*Ls*Ls);
+  C.read_all(&npair,&pairs);
+  if(rank==0){
+    ofstream correl;
+    char fname[200]; snprintf(fname,200,"pion_2pt_%05d.txt", lat.nstore);
+    correl.open(fname);
+    for(int64_t i = 0; i < npair; ++i){
+      correl << i << "\t" << norm*pairs[i].real() << "\t" << norm*pairs[i].imag() << endl;
+    }
+    correl.close();
+  } 
   
-  MPI_Finalize();
+  //MPI_Finalize();
   return 0;
 }
