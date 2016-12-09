@@ -164,7 +164,7 @@ int main(int argc, char ** argv) {
                                      x_3d   * (Ts)                   + // x_3d runs from 0 to Ls^3
                                      gt;
 
-                  // the following caused such a bad headache... need to write a clean wrapper for this which
+                  // need to write a clean wrapper for this which
                   // deals with the struct directly instead of doing two different pointer arithmetics in one line...
                   pairs[counter] = *( ((_Complex double*)(temp_field[0] + g_ipt[t][x][y][z])) + prop_s*Cs + prop_c );
                   counter++;
