@@ -1,0 +1,22 @@
+The aim of nyom is to provide a general package for quark line contractions arising
+in lattice QCD by making use of the Cyclops Tensor Framework (CTF) written by
+Edgar Solomonik and collaborators for efficient parallelisation.
+
+I hope that the interface can be made sufficiently abstract to
+support any kind of representation for the quark lines, such that
+point and stochastic propagators as well as exact and stochastic
+perambulators can be used to construct any possible diagram.
+
+After the contractions have been defined (in a yet to be implemenented
+scripting language), nyom will try to satisfy all dependencies
+for the contractions by either reading propagators or calling
+solver interfaces of arbitrary LQCD codes linked against it.
+
+At the present moment (10.12.2016), functionality is still severely
+limited and the project is in an exploratory stage to assess how
+increasing levels of complexity will affect the efficiency of the
+contraction algorithms employed by CTF.
+
+nyom is being developed by Bartosz Kostrzewa at the Helmholtz 
+Institut fuer Strahlen- und Kernphysik, Theory Division, 
+University of Bonn, 53115 Bonn, Germany.
