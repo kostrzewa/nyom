@@ -1,0 +1,21 @@
+CTF_DIR=$(HOME)/code/ctf
+TMLQCD_BUILDDIR=/lustre/fs17/group/etmc/kostrzew/build/pax/tmLQCD/icc_mvapich_lemon
+TMLQCD_SRCDIR=${HOME}/code/tmLQCD.etmc
+TMLQCD_LIBS=-lwrapper -lhmc -lmonomial -loperator -lmeas -lsolver -linit -llinalg -lhmc -lxchange -lrational -lio -lm -llime -llemon -lDDalphaAMG
+LIME_DIR=$(HOME)/local64_pax/lime_icc
+LEMON_DIR=$(HOME)/local64_pax/lemon-icc-mvapich2
+
+LAPACK=-Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -liomp5 -lpthread -lm -ldl
+
+DDalphaAMG_DIR=${HOME}/code/DDalphaAMG_avx_mvapich
+
+INCL=-I$(CTF_DIR)/include/ -I${TMLQCD_SRCDIR}/ -I${TMLQCD_SRCDIR}/include/ -I${TMLQCD_BUILDDIR} -I${LIME_DIR}/include/ -I${LEMON_DIR}/include/
+LIBS=-L${DDalphaAMG_DIR}/lib -L$(CTF_DIR)/lib -L$(LIME_DIR)/lib -L${LEMON_DIR}/lib -L${TMLQCD_BUILDDIR}/lib -lctf ${LAPACK} -lblas -llapack ${TMLQCD_LIBS}
+
+CXX = mpicxx
+CXXFLAGS = -std=c++11 -D_POSIX_C_SOURCE=200112L -D__STDC_LIMIT_MACROS -DFTN_UNDERSCORE=1 -fopenmp -march=corei7 -mtune=corei7 -O3
+LDFLAGS = -fopenmp
+
+LINK=${CXX} -o $@ ${LDFLAGS}
+
+include make.inc
