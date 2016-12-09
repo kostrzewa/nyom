@@ -8,8 +8,6 @@
 
 #include <ctf.hpp>
 
-#include "../../external/ranlxd.h"
-
 #include "tmLQCD.h"
 
 using namespace CTF;
