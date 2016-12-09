@@ -202,12 +202,12 @@ int main(int argc, char ** argv) {
   int64_t flops = flp.count( MPI_COMM_WORLD );
 
   // naive number of FP ops
-  // 4 FP ops per complex multiplication
+  // 6 FP ops per complex multiplication (4 multiplications, 2 additions ) 
   // 2*(3*(L-1) + (C-1) + (D-1) ) additions to sum contraction of all indices
   // 12 additions : (7 indices are contracted -> 7-1 complex additions for the sum)
   // repeated T times
   if(rank==0){
-    printf("Naive Performance: %.6e mflop/s\n", (double)Ts*( 12 + 4*(double)Ls*Ls*Ls*Ds*Ds*Cs*Cs + 2*( 3*(Ls-1) + (Cs-1) + (Ds-1) )  )/(cntr_time*1e6));
+    printf("Naive Performance: %.6e mflop/s\n", (double)Ts*( 12 + 6*(double)Ls*Ls*Ls*Ds*Ds*Cs*Cs + 2*( 3*(Ls-1) + (Cs-1) + (Ds-1) )  )/(cntr_time*1e6));
     printf("'True' (Cyclops) Performance: %.6e mflop/s\n", (double)(flops)/(cntr_time*1e6));
   }
 
