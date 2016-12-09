@@ -80,12 +80,13 @@ int main(int argc, char ** argv) {
   size_t Ls = mpi.nproc_x * LX;
   size_t Ts = mpi.nproc_t * T;
 
-  int prop_sizes[8] = { Ts, Ls, Ls, Ls, Ds, Ds, Cs, Cs };
+  //int prop_sizes[8] = { Ts, Ls, Ls, Ls, Ds, Ds, Cs, Cs };
   //int prop_sizes[8] = { Cs, Cs, Ds, Ds, Ls, Ls, Ls, Ts };
-  int prop_shapes[8] = { NS, NS, NS, NS, NS, NS, NS, NS };
+  int prop_shapes[6] = { NS, NS, NS, NS, NS, NS };
+  int prop_sizes[6] = { Ts, Ls*Ls*Ls, Ds, Ds, Cs, Cs };
  
-  Tensor< std::complex<double> > S(8, prop_sizes, prop_shapes, dw);
-  Tensor< std::complex<double> > Sconj(8, prop_sizes, prop_shapes, dw);
+  Tensor< std::complex<double> > S(6, prop_sizes, prop_shapes, dw);
+  Tensor< std::complex<double> > Sconj(6, prop_sizes, prop_shapes, dw);
 
   std::complex<double>* pairs;
   int64_t *indices;
@@ -101,7 +102,8 @@ int main(int argc, char ** argv) {
   init_solver_field(&temp_field,VOLUMEPLUSRAND,2);
 
   // read propagators from file(s)? if yes, don't need to load gauge field
-  bool read = true;
+  bool read = false;
+  bool write = false;
   if(read==false) tmLQCD_read_gauge(lat.nstore);
   
   indices = (int64_t*) calloc(4*3*VOLUME, sizeof(int64_t));
@@ -112,8 +114,20 @@ int main(int argc, char ** argv) {
         source_spinor_field(g_spinor_field[0],g_spinor_field[1], src_s, src_c);
         convert_eo_to_lexic(temp_field[1],g_spinor_field[0],g_spinor_field[1]);
         moment = std::chrono::steady_clock::now();
-        tmLQCD_invert((double*)temp_field[0],(double*)temp_field[1],0,1);
+        tmLQCD_invert((double*)temp_field[0],(double*)temp_field[1],0,0);
         timeDiffAndUpdate(moment,"inversion",rank);
+
+        if(write){
+          convert_lexic_to_eo(g_spinor_field[0], g_spinor_field[1], temp_field[0]);
+          WRITER *writer = NULL;
+          char fname[200];
+          snprintf(fname,200,"source.%04d.00.00.inverted",lat.nstore);
+          construct_writer(&writer, fname, 1);
+          write_spinor(writer, &g_spinor_field[0], &g_spinor_field[1], 1, 64);
+          destruct_writer(writer);
+        }
+      
+        timeDiffAndUpdate(moment,"propagator io",rank);
       }else{ 
         read_spinor(g_spinor_field[0],g_spinor_field[1],"source.0000.00.inverted", (int)(src_s*Cs+src_c) );
         convert_eo_to_lexic(temp_field[0],g_spinor_field[0],g_spinor_field[1]);
@@ -132,19 +146,26 @@ int main(int argc, char ** argv) {
 
             for(size_t z = 0; z < LZ; ++z){
               size_t gz = LZ*mpi.proc_coords[3] + z;
+              size_t x_3d = Ls*Ls*gx + Ls*gy + gz;
 
               for(size_t prop_s = 0; prop_s < Ds; ++prop_s){
                 for(size_t prop_c = 0; prop_c < Cs; ++prop_c){
                   // global Cyclops index for S, leftmost tensor index runs fastest
+//                  indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
+//                                     prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
+//                                     src_s  * (Ts*Ls*Ls*Ls*Ds)       +
+//                                     prop_s * (Ts*Ls*Ls*Ls)          +
+//                                     gz     * (Ts*Ls*Ls)             +
+//                                     gy     * (Ts*Ls)                +
+//                                     gx     * (Ts)                   +
+//                                     gt;
                   indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
                                      prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
                                      src_s  * (Ts*Ls*Ls*Ls*Ds)       +
                                      prop_s * (Ts*Ls*Ls*Ls)          +
-                                     gz     * (Ts*Ls*Ls)             +
-                                     gy     * (Ts*Ls)                +
-                                     gx     * (Ts)                   +
+                                     x_3d   * (Ts)                   + // x_3d runs from 0 to Ls^3
                                      gt;
-                  
+
                   // the following caused such a bad headache... need to write a clean wrapper for this which
                   // deals with the struct directly instead of doing two different pointer arithmetics in one line...
                   pairs[counter] = *( ((_Complex double*)(temp_field[0] + g_ipt[t][x][y][z])) + prop_s*Cs + prop_c );
@@ -164,15 +185,15 @@ int main(int argc, char ** argv) {
   finalize_solver(temp_field,2);
  
   // take complex conjugate of S
-  Sconj["txyzijab"] = S["txyzijab"];
-  ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
+  Sconj["txijab"] = S["txijab"];
+  ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txijab"]);
 
   // perform contraction
   Vector< std::complex<double> > C(Ts,dw);
   moment = std::chrono::steady_clock::now();
   Flop_counter flp;
   flp.zero();
-  C["t"] = Sconj["tXYZIJAB"]*S["tXYZIJAB"];
+  C["t"] = Sconj["tXIJAB"]*S["tXIJAB"];
   double cntr_time = timeDiffAndUpdate(moment,"2-pt contraction",rank);
   int64_t flops = flp.count( MPI_COMM_WORLD );
   // naive number of FP ops
