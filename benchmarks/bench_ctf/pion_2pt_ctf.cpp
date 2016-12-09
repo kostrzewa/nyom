@@ -188,12 +188,19 @@ int main(int argc, char ** argv) {
 
   // perform contraction
   Vector< std::complex<double> > C(Ts,dw);
+  MPI_Barrier( MPI_COMM_WORLD );
   moment = std::chrono::steady_clock::now();
   Flop_counter flp;
   flp.zero();
   C["t"] = Sconj["tXIJAB"]*S["tXIJAB"];
+  MPI_Barrier( MPI_COMM_WORLD );
   double cntr_time = timeDiffAndUpdate(moment,"2-pt contraction",rank);
+  double global_time;
+  
+  MPI_Allreduce( &cntr_time, &global_time, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD );
+  cntr_time = global_time / np;
   int64_t flops = flp.count( MPI_COMM_WORLD );
+
   // naive number of FP ops
   // 4 FP ops per complex multiplication
   // 2*(3*(L-1) + (C-1) + (D-1) ) additions to sum contraction of all indices
