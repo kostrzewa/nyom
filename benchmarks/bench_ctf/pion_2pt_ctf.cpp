@@ -224,6 +224,6 @@ int main(int argc, char ** argv) {
     correl.close();
   } 
   
-  //MPI_Finalize();
+  //MPI_Finalize(); // probably need to destroy CTF::World before calling this
   return 0;
 }
