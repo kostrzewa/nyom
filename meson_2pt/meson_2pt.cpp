@@ -61,10 +61,10 @@ double timeDiffAndUpdate(
   return(rval);
 }
 
-double measureFlopsPerSec( double local_time 
-                           CTF::Flop_counter& flp,
-                           const char* const name,
-                           const int rank ){
+double measureFlopsPerSecond( double local_time, 
+                              CTF::Flop_counter& flp,
+                              const char* const name,
+                              const int rank, const int np ){
   double global_time;
   MPI_Allreduce( &local_time, &global_time, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD );
   int64_t flops = flp.count( MPI_COMM_WORLD );
@@ -251,8 +251,10 @@ int main(int argc, char ** argv) {
   free(indices); free(pairs);
   finalize_solver(temp_field,2);
  
-  // take complex conjugate of S
-  Sconj["txijab"] = S["txijab"];
+  // take complex conjugate of S and transpose the colour indices
+  // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
+  // below
+  Sconj["txijba"] = S["txijab"];
   ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txijab"]);
 
   // perform contractions
@@ -264,14 +266,15 @@ int main(int argc, char ** argv) {
         timeReset(moment);
         flp.zero();
 
-      Ssrc["txijab"] = (g[g_src])["iL"] * S["txLjab"];
-        timeDiffAndUpdate(moment,"source gamma insertion>",rank);
+      Ssrc["txijab"] = S["txiLab"] * (g[g_src])["LK"] * (g["5"])["Kj"];
+        timeDiffAndUpdate(moment,"source gamma insertion",rank);
 
-      Ssnk["txijab"] = (g["5"])["iL"] *  Sconj["txMLba"] * (g["5"])["MK"]  * (g[g_snk])["Kj"];
-        timeDiffAndUpdate(moment,"sink gamma insertion and one-end trick",rank);
+      Ssnk["txijab"] = Sconj["txLiab"] * (g["5"])["LK"]  * (g[g_snk])["Kj"];
+        timeDiffAndUpdate(moment,"sink gamma insertion",rank);
 
-      C["t"] = Ssnk["tXIJAB"] * Ssrc["tXIJAB"];
-        measureFlopsPerSecond( timeDiffAndUpdate(moment,"2-pt contraction",rank), flp, "meson 2-pt function", rank );
+      // it is unclear to me, why this is not a "diagonal" sum
+      C["t"] = Ssnk["tXIJAB"] * Ssrc["tXJIBA"];
+        measureFlopsPerSecond( timeDiffAndUpdate(moment,"2-pt contraction",rank), flp, "meson 2-pt function", rank, np );
 
       C.read_all(&npair,&pairs);
       if(rank==0){
