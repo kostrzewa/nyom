@@ -34,10 +34,16 @@ using namespace CTF;
 using namespace std;
 using namespace nyom;
 
+void timeReset( std::chrono::time_point<std::chrono::steady_clock>& time ){
+  MPI_Barrier(MPI_COMM_WORLD);
+  time = std::chrono::steady_clock::now();
+}
+
 double timeDiff(
         const std::chrono::time_point<std::chrono::steady_clock>& time, 
         const char* const name,
         const int rank){
+  MPI_Barrier(MPI_COMM_WORLD);
   std::chrono::duration<double> elapsed_seconds = std::chrono::steady_clock::now() - time;
   if(rank==0){ 
     cout << "Time for " << name << " " << elapsed_seconds.count() <<
@@ -53,6 +59,19 @@ double timeDiffAndUpdate(
   double rval = timeDiff(time,name,rank);
   time = std::chrono::steady_clock::now();
   return(rval);
+}
+
+double measureFlopsPerSec( double local_time 
+                           CTF::Flop_counter& flp,
+                           const char* const name,
+                           const int rank ){
+  double global_time;
+  MPI_Allreduce( &local_time, &global_time, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD );
+  int64_t flops = flp.count( MPI_COMM_WORLD );
+  double fps = (double)(flops)/(global_time*1e6/np);
+  if(rank==0){
+    printf("'Performance in '%s': %.6e mflop/s\n", name, fps);
+  }
 }
 
 int main(int argc, char ** argv) {
@@ -96,7 +115,7 @@ int main(int argc, char ** argv) {
 
   World dw(argc, argv);
 
-  moment = std::chrono::steady_clock::now();
+  timeReset(moment);
   init_gammas(dw);
   timeDiff(moment,"gamma initialisation", rank);
   
@@ -138,7 +157,7 @@ int main(int argc, char ** argv) {
   int64_t *indices;
   int64_t  npair;
 
-  start = std::chrono::steady_clock::now();
+  timeReset(start);
 
   spinor ** temp_field = NULL;
   init_solver_field(&temp_field,VOLUMEPLUSRAND,2);
@@ -146,16 +165,20 @@ int main(int argc, char ** argv) {
   // read propagators from file(s)? if yes, don't need to load gauge field
   bool read = true;
   bool write = true;
-  if(read==false) { tmLQCD_read_gauge(lat.nstore); write = false; }
+  if(read) {
+    write = false; 
+  } else {
+    tmLQCD_read_gauge(lat.nstore); 
+  }
   
   indices = (int64_t*) calloc(4*3*VOLUME, sizeof(int64_t));
   pairs = (std::complex<double>*) calloc(4*3*VOLUME, sizeof(std::complex<double>));
   for(size_t src_s = 0; src_s < Ds; ++src_s){
     for(size_t src_c = 0; src_c < Cs; ++src_c){
+      timeReset(moment);
       if(read == false){ 
         source_spinor_field(g_spinor_field[0],g_spinor_field[1], src_s, src_c);
         convert_eo_to_lexic(temp_field[1],g_spinor_field[0],g_spinor_field[1]);
-        moment = std::chrono::steady_clock::now();
         tmLQCD_invert((double*)temp_field[0],(double*)temp_field[1],0,0);
         timeDiffAndUpdate(moment,"inversion",rank);
 
@@ -168,14 +191,16 @@ int main(int argc, char ** argv) {
           write_spinor(writer, &g_spinor_field[0], &g_spinor_field[1], 1, 64);
           destruct_writer(writer);
         }
-      
         timeDiffAndUpdate(moment,"propagator io",rank);
-      }else{ 
-        read_spinor(g_spinor_field[0],g_spinor_field[1],"source.0100.00.00.inverted", (int)(src_s*Cs+src_c) );
+      
+      }else{
+        char fname[200]; snprintf(fname,200,"source.%04d.00.00.inverted",lat.nstore);
+        read_spinor(g_spinor_field[0],g_spinor_field[1],fname, (int)(src_s*Cs+src_c) );
         convert_eo_to_lexic(temp_field[0],g_spinor_field[0],g_spinor_field[1]);
+        timeDiffAndUpdate(moment,"propagator io",rank);
       }
       // globally translate from tmLQCD to Cyclops
-      moment = std::chrono::steady_clock::now();
+      timeReset(moment);
       int64_t counter = 0;
       for(size_t t = 0; t < T; ++t){
         size_t gt = T*mpi.proc_coords[0] + t;
@@ -231,31 +256,22 @@ int main(int argc, char ** argv) {
   ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txijab"]);
 
   // perform contractions
+  Flop_counter flp;
   Vector< std::complex<double> > C(Ts,dw);
   double norm = 1.0/((double)Ls*Ls*Ls);
   for( std::string g_src : i_g ){
     for( std::string g_snk : i_g ){
-      MPI_Barrier( MPI_COMM_WORLD );
-      moment = std::chrono::steady_clock::now();
-      Flop_counter flp;
-      flp.zero();
-      // TODO: figure out how and when the conjugate should be taken
-      Ssrc["txijab"] = (g[g_src])["iL"] * S ["txLjab"];
-      Ssnk["txijab"] = (g["5"])["iL"] *  Sconj["txLMab"] * (g["5"])["MK"]  * (g[g_snk])["Kj"];
+        timeReset(moment);
+        flp.zero();
+
+      Ssrc["txijab"] = (g[g_src])["iL"] * S["txLjab"];
+        timeDiffAndUpdate(moment,"source gamma insertion>",rank);
+
+      Ssnk["txijab"] = (g["5"])["iL"] *  Sconj["txMLba"] * (g["5"])["MK"]  * (g[g_snk])["Kj"];
+        timeDiffAndUpdate(moment,"sink gamma insertion and one-end trick",rank);
+
       C["t"] = Ssnk["tXIJAB"] * Ssrc["tXIJAB"];
-      MPI_Barrier( MPI_COMM_WORLD );
-      double cntr_time = timeDiffAndUpdate(moment,"2-pt contraction",rank);
-      double global_time;
-      
-      MPI_Allreduce( &cntr_time, &global_time, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD );
-      cntr_time = global_time / np;
-      int64_t flops = flp.count( MPI_COMM_WORLD );
-
-      if(rank==0){
-        printf("'True' performance: %.6e mflop/s\n", (double)(flops)/(cntr_time*1e6));
-      }
-
-      C.print();
+        measureFlopsPerSecond( timeDiffAndUpdate(moment,"2-pt contraction",rank), flp, "meson 2-pt function", rank );
 
       C.read_all(&npair,&pairs);
       if(rank==0){
@@ -268,6 +284,7 @@ int main(int argc, char ** argv) {
         correl.close();
       }
       free(pairs);
+      timeDiffAndUpdate(moment,"Correlator IO",rank);
     }
   } 
   elapsed_seconds = std::chrono::steady_clock::now()-start;
