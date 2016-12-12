@@ -251,7 +251,7 @@ int main(int argc, char ** argv) {
   free(indices); free(pairs);
   finalize_solver(temp_field,2);
  
-  // take complex conjugate of S and transpose the colour indices
+  // transpose colour indices and take complex conjugate for gamma5  hermiticity
   // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
   // below
   Sconj["txijba"] = S["txijab"];
@@ -261,6 +261,7 @@ int main(int argc, char ** argv) {
   Flop_counter flp;
   Vector< std::complex<double> > C(Ts,dw);
   double norm = 1.0/((double)Ls*Ls*Ls);
+  // many of these are non-sensical or zero, but for now, let's loop over all of them
   for( std::string g_src : i_g ){
     for( std::string g_snk : i_g ){
         timeReset(moment);
@@ -272,7 +273,6 @@ int main(int argc, char ** argv) {
       Ssnk["txijab"] = Sconj["txLiab"] * (g["5"])["LK"]  * (g[g_snk])["Kj"];
         timeDiffAndUpdate(moment,"sink gamma insertion",rank);
 
-      // it is unclear to me, why this is not a "diagonal" sum
       C["t"] = Ssnk["tXIJAB"] * Ssrc["tXJIBA"];
         measureFlopsPerSecond( timeDiffAndUpdate(moment,"2-pt contraction",rank), flp, "meson 2-pt function", rank, np );
 
@@ -294,6 +294,6 @@ int main(int argc, char ** argv) {
   if(rank==0)
     cout << "All meson 2-pt functions took " << elapsed_seconds.count() << " seconds" << std::endl;
   
-  //MPI_Finalize(); // probably need to destroy CTF::World before calling this
+  //MPI_Finalize(); // probably need to destroy CTF::World before calling this because it throws lots of errors
   return 0;
 }
