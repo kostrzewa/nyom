@@ -56,7 +56,9 @@ void init_gammas(CTF::World& dw){
     }
   } 
 
-  // remember that in CTF the left-most index runs fastest -> each row below corresponds to a column of the resulting g
+  // remember that in CTF the left-most index runs fastest, for a rank 2 tensor, this means
+  // that the "row" index runs fastest such that the conditionals below should be thought of
+  // as iterating over the columns of the matrix, top to bottom, left to right
   int64_t npair;
   int64_t* idx;
   std::complex<double>* pairs;
