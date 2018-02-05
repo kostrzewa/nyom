@@ -28,6 +28,14 @@
 
 #include "tmLQCD.h"
 
+extern "C" {
+#include "global.h"
+#include "solver/solver_field.h"
+#include "start.h"
+#include "io/spinor.h"
+#include "linalg/convert_eo_to_lexic.h"
+}
+
 #include "gammas.hpp"
 
 using namespace CTF;
@@ -142,16 +150,16 @@ int main(int argc, char ** argv) {
   size_t Ls = mpi.nproc_x * LX;
   size_t Ts = mpi.nproc_t * T;
 
-  //int prop_sizes[8] = { Ts, Ls, Ls, Ls, Ds, Ds, Cs, Cs };
+  int prop_sizes[8] = { Ts, Ls, Ls, Ls, Ds, Ds, Cs, Cs };
   //int prop_sizes[8] = { Cs, Cs, Ds, Ds, Ls, Ls, Ls, Ts };
-  int prop_shapes[6] = { NS, NS, NS, NS, NS, NS };
-  int prop_sizes[6] = { Ts, Ls*Ls*Ls, Ds, Ds, Cs, Cs };
+  int prop_shapes[8] = { NS, NS, NS, NS, NS, NS, NS, NS };
+  //int prop_sizes[6] = { Ts, Ls*Ls*Ls, Ds, Ds, Cs, Cs };
  
-  Tensor< std::complex<double> > S(6, prop_sizes, prop_shapes, dw);
-  Tensor< std::complex<double> > Sconj(6, prop_sizes, prop_shapes, dw);
+  Tensor< std::complex<double> > S(8, prop_sizes, prop_shapes, dw);
+  Tensor< std::complex<double> > Sconj(8, prop_sizes, prop_shapes, dw);
   
-  Tensor< std::complex<double> > Ssrc(6, prop_sizes, prop_shapes, dw);
-  Tensor< std::complex<double> > Ssnk(6, prop_sizes, prop_shapes, dw);
+  Tensor< std::complex<double> > Ssrc(8, prop_sizes, prop_shapes, dw);
+  Tensor< std::complex<double> > Ssnk(8, prop_sizes, prop_shapes, dw);
 
   std::complex<double>* pairs;
   int64_t *indices;
@@ -163,7 +171,7 @@ int main(int argc, char ** argv) {
   init_solver_field(&temp_field,VOLUMEPLUSRAND,2);
 
   // read propagators from file(s)? if yes, don't need to load gauge field
-  bool read = true;
+  bool read = false;
   bool write = true;
   if(read) {
     write = false; 
@@ -218,20 +226,20 @@ int main(int argc, char ** argv) {
               for(size_t prop_s = 0; prop_s < Ds; ++prop_s){
                 for(size_t prop_c = 0; prop_c < Cs; ++prop_c){
                   // global Cyclops index for S, leftmost tensor index runs fastest
-//                  indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
-//                                     prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
-//                                     src_s  * (Ts*Ls*Ls*Ls*Ds)       +
-//                                     prop_s * (Ts*Ls*Ls*Ls)          +
-//                                     gz     * (Ts*Ls*Ls)             +
-//                                     gy     * (Ts*Ls)                +
-//                                     gx     * (Ts)                   +
-//                                     gt;
                   indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
                                      prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
                                      src_s  * (Ts*Ls*Ls*Ls*Ds)       +
                                      prop_s * (Ts*Ls*Ls*Ls)          +
-                                     x_3d   * (Ts)                   + // x_3d runs from 0 to Ls^3
+                                     gz     * (Ts*Ls*Ls)             +
+                                     gy     * (Ts*Ls)                +
+                                     gx     * (Ts)                   +
                                      gt;
+                  //indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
+                  //                   prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
+                  //                   src_s  * (Ts*Ls*Ls*Ls*Ds)       +
+                  //                   prop_s * (Ts*Ls*Ls*Ls)          +
+                  //                   x_3d   * (Ts)                   + // x_3d runs from 0 to Ls^3
+                  //                   gt;
 
                   // need to write a clean wrapper for this which
                   // deals with the struct directly instead of doing two different pointer arithmetics in one line...
@@ -254,8 +262,8 @@ int main(int argc, char ** argv) {
   // transpose colour indices and take complex conjugate for gamma5  hermiticity
   // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
   // below
-  Sconj["txijba"] = S["txijab"];
-  ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txijab"]);
+  Sconj["txyzijba"] = S["txyzijab"];
+  ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
 
   // perform contractions
   Flop_counter flp;
@@ -267,13 +275,13 @@ int main(int argc, char ** argv) {
         timeReset(moment);
         flp.zero();
 
-      Ssrc["txijab"] = S["txiLab"] * (g[g_src])["LK"] * (g["5"])["Kj"];
+      Ssrc["txyzijab"] = S["txyziLab"] * (g[g_src])["LK"] * (g["5"])["Kj"];
         timeDiffAndUpdate(moment,"source gamma insertion",rank);
 
-      Ssnk["txijab"] = Sconj["txLiab"] * (g["5"])["LK"]  * (g[g_snk])["Kj"];
+      Ssnk["txyzijab"] = Sconj["txyzLiab"] * (g["5"])["LK"]  * (g[g_snk])["Kj"];
         timeDiffAndUpdate(moment,"sink gamma insertion",rank);
 
-      C["t"] = Ssnk["tXIJAB"] * Ssrc["tXJIBA"];
+      C["t"] = Ssnk["tXYZIJAB"] * Ssrc["tXYZJIBA"];
         measureFlopsPerSecond( timeDiffAndUpdate(moment,"2-pt contraction",rank), flp, "meson 2-pt function", rank, np );
 
       C.read_all(&npair,&pairs);
