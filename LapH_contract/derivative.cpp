@@ -64,8 +64,8 @@ int main(int argc, char ** argv){
   nyom::LapH_eigsys V = nyom::make_LapH_eigsys(Nev, Lt, Ls, Ls, Ls, Nc, geom.get_world() );
   nyom::LapH_eigsys Vxp1 = nyom::make_LapH_eigsys(Nev, Lt, Ls, Ls, Ls, Nc, geom.get_world() );
   nyom::LapH_eigsys UxVxp1 = nyom::make_LapH_eigsys(Nev, Lt, Ls, Ls, Ls, Nc, geom.get_world() );
-  nyom::LapH_eigsys Vtest = nyom::make_LapH_eigsys(Nev, Lt, Ls, Ls, Ls, Nc, geom.get_world() );
-  nyom::LapH_eigsys Vback = nyom::make_LapH_eigsys(Nev, Lt, Ls, Ls, Ls, Nc, geom.get_world() );
+  nyom::LapH_eigsys UxVx = nyom::make_LapH_eigsys(Nev, Lt, Ls, Ls, Ls, Nc, geom.get_world() );
+  //nyom::LapH_eigsys Vback = nyom::make_LapH_eigsys(Nev, Lt, Ls, Ls, Ls, Nc, geom.get_world() );
 
   nyom::Gaugefield gf = nyom::make_Gaugefield(Lt, Ls, Ls, Ls, Nc, geom );
 
@@ -78,10 +78,10 @@ int main(int argc, char ** argv){
                                     conf_start,
                                     geom );
   
-  sw.reset();
-  nyom::LapH_eigsys Vdagger( V );
-  ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Vdagger["cizyxt"]);
-  sw.elapsed_print("Vdagger");
+  //sw.reset();
+  //nyom::LapH_eigsys Vdagger( V );
+  //((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Vdagger["cizyxt"]);
+  //sw.elapsed_print("Vdagger");
 
   //V.print();
 
@@ -136,10 +136,27 @@ int main(int argc, char ** argv){
   // test shifts done
   
   sw.reset();
-  Vxp1["cizyxt"] = shifts[nyom::xp1]["xX"] * V["cizyXt"];
+  Vxp1["czyxit"] = shifts[nyom::xp1]["xX"] * V["czyXit"];
   sw.elapsed_print_and_reset("shift V");
-  UxVxp1["cizyxt"] = gf.U[nyom::GF_DIR_X]["Cczyxt"] * Vxp1["Ciyzxt"];
+  UxVxp1["czyxit"] = gf.U[nyom::GF_DIR_X]["Cczyxt"] * Vxp1["Czyxit"];
   sw.elapsed_print("UxVxp1");
+
+  UxVx["czyxit"] = gf.U[nyom::GF_DIR_X]["Cczyxt"] * V["Czyxit"];
+
+  write_LapH_eigsys_to_files(V,
+                             "V_io_test",
+                             conf_start,
+                             geom);
+
+  write_LapH_eigsys_to_files(UxVx,
+                             "UxVx",
+                             conf_start,
+                             geom );
+
+  write_LapH_eigsys_to_files(UxVxp1,
+                             "UxVxp1",
+                             conf_start,
+                             geom );
 
   //sw.reset();
   //Vback["cizyxt"] =  shifts[nyom::xm1]["xX"] * Vxp1["cizyXt"];

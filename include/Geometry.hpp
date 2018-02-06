@@ -52,6 +52,7 @@ class Geometry {
       tmLQCD_get_lat_params(&lat);
 
       MPI_Comm_size(MPI_COMM_WORLD, &Nranks);
+      MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
       //// partition the ranks in two dimensions along time and eigenvector extents
       //int ranks_remaining;
@@ -89,12 +90,21 @@ class Geometry {
     return *world;
   }
 
+  int get_myrank() const {
+    return myrank;
+  }
+
+  int get_Nranks() const {
+    return Nranks;
+  }
+
   tmLQCD_lat_params lat;
   tmLQCD_mpi_params mpi;
 
   private:
     CTF::World* world;
     int Nranks;
+    int myrank;
 
 };
 
