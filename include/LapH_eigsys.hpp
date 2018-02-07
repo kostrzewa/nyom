@@ -284,7 +284,7 @@ void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
       ev_file.close();
     } else {
       // all processes need to exectute read, but only ts_rank==0 ones
-      // actually read data
+      // actually read data from the tensor
       V.read(0, NULL, NULL);
     }
   } // t

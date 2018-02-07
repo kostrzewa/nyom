@@ -28,7 +28,7 @@ extern "C" {
 #include <tmLQCD.h>
 }
 
-
+#include <cfloat>
 
 namespace nyom {
   typedef enum Gaugefield_dims_t {
@@ -58,13 +58,8 @@ namespace nyom {
                              int Nc,
                              const nyom::Geometry & geom){
     const int shapes[6] = { NS, NS, NS, NS, NS, NS };
-    int sizes[6];
-    sizes[0] = Nc;
-    sizes[1] = Nc;
-    sizes[2] = Nz;
-    sizes[3] = Ny;
-    sizes[4] = Nx;
-    sizes[5] = Nt;
+    const int sizes[6] = {Nc, Nc, Nz, Ny, Nx, Nt};
+
     
     nyom::Gaugefield gf;
     for( auto & gfmu : gf.U ){
@@ -79,7 +74,6 @@ namespace nyom {
                                  const nyom::Geometry & geom){
     nyom::Stopwatch sw;
 
-    double ** tmLQCD_gf;
     sw.reset();
     tmLQCD_read_gauge( cid );
     sw.elapsed_print("tmLQCD gauge field reading");
@@ -106,19 +100,19 @@ namespace nyom {
       sw.reset();
       gf.U[dir].read_local(&npair, &indices, &pairs);
       sw.elapsed_print_and_reset("gf.read_local");
-      int64_t counter = 0;
 
+      int64_t counter = 0;
       for( int t = 0; t < Nt_local; ++t){
-        int gt = Nt*geom.mpi.proc_coords[0] + t;
+        int gt = Nt_local*geom.mpi.proc_coords[0] + t;
         
         for( int x = 0; x < Nx_local; ++x){
-          int gx = Nx*geom.mpi.proc_coords[1] + x;
+          int gx = Nx_local*geom.mpi.proc_coords[1] + x;
 
           for( int y = 0; y < Ny_local; ++y){
-            int gy = Ny*geom.mpi.proc_coords[2] + y;
+            int gy = Ny_local*geom.mpi.proc_coords[2] + y;
 
             for( int z = 0; z < Nz_local; ++z){
-              int gz = Nz*geom.mpi.proc_coords[3] + z;
+              int gz = Nz_local*geom.mpi.proc_coords[3] + z;
 
               for( int cr = 0; cr < Nc; ++cr ){
                 for( int cc = 0; cc < Nc; ++cc ){
@@ -136,7 +130,8 @@ namespace nyom {
                                                         su3_get_elem(&g_gauge_field[ g_ipt[t][x][y][z] ][dir], 
                                                                      cr,
                                                                      cc,
-                                                                     1) );
+                                                                     1) 
+                                                        );
                   counter++;
                 } // cc
               } // cr
