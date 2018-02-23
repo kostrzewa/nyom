@@ -91,6 +91,12 @@ int main(int argc, char ** argv){
   Vback["czyxit"] = shifts[nyom::xm1]["xX"] * Vxp1["czyXit"];
   sw.elapsed_print_and_reset("shift V");
 
+  UxVxp1["czyxit"] = gf.U[nyom::GF_DIR_X]["Cczyxt"] * Vxp1["Czyxit"];
+  sw.elapsed_print_and_reset("UxVxp1");
+
+  UxVx["czyxit"] = gf.U[nyom::GF_DIR_X]["Cczyxt"] * V["Czyxit"];
+  sw.elapsed_print_and_reset("UxVx");
+
   write_LapH_eigsys_to_files(Vxp1,
                              "Vxp1",
                              conf_start,
@@ -100,11 +106,6 @@ int main(int argc, char ** argv){
                              "Vback",
                              conf_start,
                              geom );
-  
-  UxVxp1["czyxit"] = gf.U[nyom::GF_DIR_X]["Cczyxt"] * Vxp1["Czyxit"];
-  sw.elapsed_print("UxVxp1");
-
-  UxVx["czyxit"] = gf.U[nyom::GF_DIR_X]["Cczyxt"] * V["Czyxit"];
 
   write_LapH_eigsys_to_files(V,
                              "V_io_test",
