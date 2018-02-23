@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 2.6)
-project (LapH_contract)
+project (nyom)
 
 set(CTF_HOME CACHE PATH "path to configured CTF source or build directory")
 
@@ -48,7 +48,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(yaml-cpp REQUIRED)
 message("Found yaml-cpp: ${YAML_CPP_LIBRARIES}")
-include_directories(${YAML_CPP_INCLUDE_DIR} ../include)
+include_directories(${YAML_CPP_INCLUDE_DIR})
 link_libraries(${YAML_CPP_LIBRARIES})
 
 find_package(LAPACK REQUIRED)
@@ -77,4 +77,10 @@ else()
   message( FATAL_ERROR "Unable to find OpenMP!" )
 endif()
 
-add_executable(derivative derivative.cpp)
+
+# base package includes and libraries
+include_directories(include)
+
+add_executable(displacement manual_tests/displacement/displacement.cpp)
+
+add_subdirectory(tests)
