@@ -19,14 +19,15 @@
 
 #pragma once
 
-//#include "utility_functions.hpp"
+// for some reason, linking errors occur if boost::program_options is not
+// included at the very top
+#include <boost/program_options.hpp>
 
-#include "geometry.hpp"
+#include "Geometry.hpp"
 
 #include <ctf.hpp>
 #include <tmLQCD.h>
 #include <yaml-cpp/yaml.h>
-#include <boost/program_options.hpp>
 
 #include <stdexcept>
 #include <memory>
@@ -34,6 +35,9 @@
 #include <unordered_map>
 #include <string>
 #include <iostream>
+#include <fstream>
+#include <exception>
+#include <string>
 
 namespace nyom {
 
@@ -44,7 +48,7 @@ typedef enum logtype_t {
 } logtype_t;
 
 typedef struct logfile_t {
-  
+  std::fstream file; 
 } logfile_t;
 
   /**
@@ -55,45 +59,76 @@ typedef struct logfile_t {
    */
 class Core {
   public:
-    Core(int argc,
-         char ** argv) : geom(argc, argv), desc("cmd_options")
+    Core(int argc, char ** argv) : 
+      geom(argc, argv), 
+      cmd_desc("cmd_options")
     {
       declare_cmd_options();
       try
       {
-        store(boost::program_options::parse_command_line(argc, argv, desc), cmd_options);
+        boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cmd_desc), 
+                                      cmd_options);
+        notify(cmd_options);
       }
-      catch ( const error &ex )
+      catch ( const std::exception &ex )
       {
         std::cerr << ex.what() << "\n";
       }
-
-      config = YAML:LoadFile( cmd_options["input_file"].as<std::string>() );
+      if( cmd_options.count("help") ){
+        print_usage();
+        finalise();
+      }
+      input_node = YAML::LoadFile( cmd_options["input"].as<std::string>() );
     }
       
 
     ~Core(){
-      for( auto && logfile : logfiles ){
-        logfile.file.close();
+      // the auto constructs a ref to std::pair<std::string, nyom::logfile_t>
+      // would prefer to do this here explictly, but the compiler complains
+      // for some esoteric reason
+      for( auto & logfile : logfiles ){
+        if( logfile.second.file.is_open() ){
+          logfile.second.file.close();
+        }
       }
     }
 
-    void Core::Logger(std::string objname,){
+    void Logger(std::string objname){
     }
-                      
+    
+    void print_usage(void){
+      if( geom.get_myrank() == 0 ){
+        std::cout << "useful usage information" << std::endl;
+      }
+    }
+
+    void finalise(void){
+      finalise("");
+    }
+
+    void finalise(const std::string msg){
+      geom.finalise();
+      if( msg.length() > 0 ){
+        std::cout << msg << std::endl;
+      }
+    }
 
   private:
     void declare_cmd_options(void){
-      desc.add_options()
-        ("help,h,?", "usage information")
-        ("input,i",value<std::string>()default_value("config.yaml"), "input file");
+      cmd_desc.add_options()
+        ("help,h", "usage information")
+        ("input,i",
+         boost::program_options::value<std::string>()->default_value( std::string("config.yaml") ), 
+         "filename of nyom YAML-formatted input file");
     }
 
-    boost::program_options::options_description;
+    boost::program_options::options_description cmd_desc;
     boost::program_options::variables_map cmd_options;
     nyom::Geometry geom;
     unordered_map<std::string,logfile_t> logfiles;
-    YAML::Node input_file;
+    YAML::Node input_node;
+
+    bool initialised;
 };
 
 }

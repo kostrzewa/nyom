@@ -24,7 +24,7 @@
 #include <ctf.hpp>
 #include <tmLQCD.h>
 
-#include <stdexcept>
+#include <exception>
 #include <memory>
 #include <sstream>
 
@@ -47,7 +47,10 @@ class Geometry {
         throw std::runtime_error("Provided MPI thread level does not match requested thread level in MPI_Init_thread.\n");
       }
 
-      tmLQCD_invert_init(argc,argv,1,0);
+      int tm_init_state = tmLQCD_invert_init(argc,argv,1,0);
+      if( tm_init_state != 0 ){
+        throw std::runtime_error("tmLQCD_invert_init had nonzero exit status!\n");
+      }
       tmLQCD_get_mpi_params(&mpi);
       tmLQCD_get_lat_params(&lat);
 
@@ -81,6 +84,10 @@ class Geometry {
     }
 
   ~Geometry(){
+    finalise();
+  }
+
+  void finalise(void){
     delete world;
     tmLQCD_finalise();
     MPI_Finalize();

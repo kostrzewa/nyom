@@ -19,8 +19,8 @@ add_executable(unitTests
 
 add_dependencies(unitTests gtest)
 include_directories(${source_dir}/include)
-target_link_libraries(unitTests ${binary_dir}/libgtest.a)
-target_link_libraries(unitTests ${binary_dir}/libgtest_main.a)
+target_link_libraries(unitTests ${binary_dir}/googlemock/gtest/libgtest.a)
+target_link_libraries(unitTests ${binary_dir}/googlemock/gtest/libgtest_main.a)
 
 add_test(
   NAME unitTests

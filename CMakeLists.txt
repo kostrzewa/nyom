@@ -67,7 +67,7 @@ else()
   message( FATAL_ERROR "Unable to find BLAS!" )
 endif()
 
-find_package(OpenMP)
+find_package(OpenMP REQUIRED)
 if (OPENMP_FOUND)
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
@@ -77,6 +77,16 @@ else()
   message( FATAL_ERROR "Unable to find OpenMP!" )
 endif()
 
+find_package(Boost 
+             REQUIRED
+             program_options)
+if( Boost_FOUND )
+  link_directories( ${Boost_LIBRARY_DIRS} )
+  include_directories( ${Boost_INCLUDE_DIRS} )
+  link_libraries( ${Boost_LIBRARIES} )
+else()
+  message( FATAL_ERROR "Unable to find Boost (or one of the requested components, see CMakeLists.txt!")
+endif()
 
 # base package includes and libraries
 include_directories(include)
@@ -84,3 +94,4 @@ include_directories(include)
 add_executable(displacement manual_tests/displacement/displacement.cpp)
 
 add_subdirectory(tests)
+add_subdirectory(manual_tests)
