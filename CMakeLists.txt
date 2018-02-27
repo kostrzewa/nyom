@@ -91,7 +91,5 @@ endif()
 # base package includes and libraries
 include_directories(include)
 
-add_executable(displacement manual_tests/displacement/displacement.cpp)
-
 add_subdirectory(tests)
 add_subdirectory(manual_tests)
