@@ -79,7 +79,8 @@ endif()
 
 find_package(Boost 
              REQUIRED
-             program_options)
+             program_options
+             filesystem)
 if( Boost_FOUND )
   link_directories( ${Boost_LIBRARY_DIRS} )
   include_directories( ${Boost_INCLUDE_DIRS} )
