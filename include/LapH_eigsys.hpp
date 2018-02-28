@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include "Core.hpp"
+
 #include "Geometry.hpp"
 #include "Stopwatch.hpp"
 
@@ -66,7 +68,7 @@ nyom::LapH_eigsys make_LapH_eigsys(const int Nev,
 void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
                                  const std::string path,
                                  const int cid,
-                                 const nyom::Geometry & geom){
+                                 const nyom::Core & core){
 
   const int Nev = V.lens[LAPH_DIM_EV];
   const int Nc = V.lens[LAPH_DIM_C];
@@ -76,10 +78,10 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
   const int Ny = V.lens[LAPH_DIM_Y];
   const int Nz = V.lens[LAPH_DIM_Z];
 
-  const int Nt_local = geom.lat.T;
-  const int Nx_local = geom.lat.LX;
-  const int Ny_local = geom.lat.LY;
-  const int Nz_local = geom.lat.LZ;
+  const int Nt_local = core.geom.lat.T;
+  const int Nx_local = core.geom.lat.LX;
+  const int Ny_local = core.geom.lat.LY;
+  const int Nz_local = core.geom.lat.LZ;
 
   nyom::Stopwatch sw;
 
@@ -97,27 +99,27 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
    * Within the group, we determine the rank ordering with Z process location
    * running fastest, then Y, then X. */
   MPI_Comm_split(MPI_COMM_WORLD,
-                 geom.mpi.proc_coords[0],
+                 core.geom.mpi.proc_coords[0],
 // Z running fastest
-                 geom.mpi.proc_coords[3] +
-                 geom.mpi.proc_coords[2]*geom.mpi.nproc_z +
-                 geom.mpi.proc_coords[1]*geom.mpi.nproc_z*geom.mpi.nproc_y,
+                 core.geom.mpi.proc_coords[3] +
+                 core.geom.mpi.proc_coords[2]*core.geom.mpi.nproc_z +
+                 core.geom.mpi.proc_coords[1]*core.geom.mpi.nproc_z*core.geom.mpi.nproc_y,
                  &ts_comm);
   MPI_Comm_rank(ts_comm,
                 &ts_rank);
   MPI_Comm_size(ts_comm,
                 &ts_Nranks);
 
-  for( int proc = 0; proc < geom.get_Nranks(); ++proc ){
+  for( int proc = 0; proc < core.geom.get_Nranks(); ++proc ){
     MPI_Barrier(MPI_COMM_WORLD);
-    if( proc == geom.get_myrank() ){
+    if( proc == core.geom.get_myrank() ){
       printf("Process %d in MPI_COMM_WORLD has coords (txyz) %d %d %d %d\n"
              "Process %d in ts_comm\n", 
-             geom.get_myrank(),
-             geom.mpi.proc_coords[0],
-             geom.mpi.proc_coords[1],
-             geom.mpi.proc_coords[2],
-             geom.mpi.proc_coords[3],
+             core.geom.get_myrank(),
+             core.geom.mpi.proc_coords[0],
+             core.geom.mpi.proc_coords[1],
+             core.geom.mpi.proc_coords[2],
+             core.geom.mpi.proc_coords[3],
              ts_rank );
     }
   }
@@ -134,7 +136,7 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
 
   for( int t = 0; t < Nt_local; ++t ){
     if( ts_rank == 0 ){
-      int gt = Nt_local*geom.mpi.proc_coords[0] + t;
+      int gt = Nt_local*core.geom.mpi.proc_coords[0] + t;
       std::stringstream filename;
       filename << path << "/eigenvectors."
         << std::setfill('0') << std::setw(4) << cid << '.'
@@ -183,7 +185,7 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
 void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
                                 const std::string path,
                                 const int cid,
-                                const nyom::Geometry & geom){
+                                const nyom::Core & core){
 
   const int Nev = V.lens[LAPH_DIM_EV];
   const int Nc = V.lens[LAPH_DIM_C];
@@ -193,10 +195,10 @@ void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
   const int Ny = V.lens[LAPH_DIM_Y];
   const int Nz = V.lens[LAPH_DIM_Z];
 
-  const int Nt_local = geom.lat.T;
-  const int Nx_local = geom.lat.LX;
-  const int Ny_local = geom.lat.LY;
-  const int Nz_local = geom.lat.LZ;
+  const int Nt_local = core.geom.lat.T;
+  const int Nx_local = core.geom.lat.LX;
+  const int Ny_local = core.geom.lat.LY;
+  const int Nz_local = core.geom.lat.LZ;
 
   nyom::Stopwatch sw;
 
@@ -214,27 +216,27 @@ void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
    * Within the group, we determine the rank ordering with Z process location
    * running fastest, then Y, then X. */
   MPI_Comm_split(MPI_COMM_WORLD,
-                 geom.mpi.proc_coords[0],
+                 core.geom.mpi.proc_coords[0],
 // Z running fastest
-                 geom.mpi.proc_coords[3] +
-                 geom.mpi.proc_coords[2]*geom.mpi.nproc_z +
-                 geom.mpi.proc_coords[1]*geom.mpi.nproc_z*geom.mpi.nproc_y,
+                 core.geom.mpi.proc_coords[3] +
+                 core.geom.mpi.proc_coords[2]*core.geom.mpi.nproc_z +
+                 core.geom.mpi.proc_coords[1]*core.geom.mpi.nproc_z*core.geom.mpi.nproc_y,
                  &ts_comm);
   MPI_Comm_rank(ts_comm,
                 &ts_rank);
   MPI_Comm_size(ts_comm,
                 &ts_Nranks);
 
-  for( int proc = 0; proc < geom.get_Nranks(); ++proc ){
+  for( int proc = 0; proc < core.geom.get_Nranks(); ++proc ){
     MPI_Barrier(MPI_COMM_WORLD);
-    if( proc == geom.get_myrank() ){
+    if( proc == core.geom.get_myrank() ){
       printf("Process %d in MPI_COMM_WORLD has coords (txyz) %d %d %d %d\n"
              "Process %d in ts_comm\n", 
-             geom.get_myrank(),
-             geom.mpi.proc_coords[0],
-             geom.mpi.proc_coords[1],
-             geom.mpi.proc_coords[2],
-             geom.mpi.proc_coords[3],
+             core.geom.get_myrank(),
+             core.geom.mpi.proc_coords[0],
+             core.geom.mpi.proc_coords[1],
+             core.geom.mpi.proc_coords[2],
+             core.geom.mpi.proc_coords[3],
              ts_rank );
     }
   }
@@ -250,7 +252,7 @@ void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
   
   for( int64_t t = 0; t < Nt_local; ++t ){
     if( ts_rank == 0 ){
-      int64_t gt = t + geom.mpi.proc_coords[0]*Nt_local;
+      int64_t gt = t + core.geom.mpi.proc_coords[0]*Nt_local;
       std::stringstream filename;
       filename << path << "/eigenvectors."
         << std::setfill('0') << std::setw(4) << cid << '.'

@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "Core.hpp"
 #include "Stopwatch.hpp"
 #include "Geometry.hpp"
 
@@ -56,14 +57,14 @@ namespace nyom {
                              int Ny,
                              int Nz,
                              int Nc,
-                             const nyom::Geometry & geom){
+                             const nyom::Core & core){
     const int shapes[6] = { NS, NS, NS, NS, NS, NS };
     const int sizes[6] = {Nc, Nc, Nz, Ny, Nx, Nt};
 
     
     nyom::Gaugefield gf;
     for( auto & gfmu : gf.U ){
-      gfmu = CTF::Tensor< complex<double> >(6, sizes, shapes, geom.get_world() );
+      gfmu = CTF::Tensor< complex<double> >(6, sizes, shapes, core.geom.get_world() );
     }
 
     return( gf );
@@ -71,7 +72,7 @@ namespace nyom {
 
   void read_Gaugefield_from_file(Gaugefield &gf,
                                  const int cid,
-                                 const nyom::Geometry & geom){
+                                 const nyom::Core & core){
     nyom::Stopwatch sw;
 
     sw.reset();
@@ -87,10 +88,10 @@ namespace nyom {
     int Ny = gf.U[0].lens[GF_DIM_Y];
     int Nz = gf.U[0].lens[GF_DIM_Z];
 
-    int Nt_local = geom.lat.T;
-    int Nx_local = geom.lat.LX;
-    int Ny_local = geom.lat.LY;
-    int Nz_local = geom.lat.LZ;
+    int Nt_local = core.geom.lat.T;
+    int Nx_local = core.geom.lat.LX;
+    int Ny_local = core.geom.lat.LY;
+    int Nz_local = core.geom.lat.LZ;
 
     int64_t npair;
     int64_t * indices;
@@ -103,16 +104,16 @@ namespace nyom {
 
       int64_t counter = 0;
       for( int t = 0; t < Nt_local; ++t){
-        int gt = Nt_local*geom.mpi.proc_coords[0] + t;
+        int gt = Nt_local*core.geom.mpi.proc_coords[0] + t;
         
         for( int x = 0; x < Nx_local; ++x){
-          int gx = Nx_local*geom.mpi.proc_coords[1] + x;
+          int gx = Nx_local*core.geom.mpi.proc_coords[1] + x;
 
           for( int y = 0; y < Ny_local; ++y){
-            int gy = Ny_local*geom.mpi.proc_coords[2] + y;
+            int gy = Ny_local*core.geom.mpi.proc_coords[2] + y;
 
             for( int z = 0; z < Nz_local; ++z){
-              int gz = Nz_local*geom.mpi.proc_coords[3] + z;
+              int gz = Nz_local*core.geom.mpi.proc_coords[3] + z;
 
               for( int cr = 0; cr < Nc; ++cr ){
                 for( int cc = 0; cc < Nc; ++cc ){

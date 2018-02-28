@@ -22,9 +22,11 @@
 // for some reason, linking errors occur if boost::program_options is not
 // included at the very top
 #include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
 
 #include "Geometry.hpp"
 #include "Logfile.hpp"
+#include "Stopwatch.hpp"
 
 #include <ctf.hpp>
 #include <tmLQCD.h>
@@ -74,18 +76,29 @@ class Core {
         finalise();
       }
       input_node = YAML::LoadFile( cmd_options["input"].as<std::string>() );
+      if( cmd_options.count("verbose") ){
+        if( geom.get_myrank() == 0 ){
+          std::cout << "Read configuration from file: " << 
+            cmd_options["input"].as<std::string>() << std::endl;
+          std::cout << input_node << std::endl << std::endl;
+        }
+      }
+      
+      if( !fs::exists("logs") ){
+        fs::create_directory("logs");
+      } else {
+        if( !fs::is_directory("logs") ){
+          throw( std::runtime_error("File 'logs' exists, but is not a directory!\n") );
+        } else {
+          fs::file_status s = fs::status("logs");
+          printf("%o\n", s.permissions());
+        }
+      }
     }
       
 
     ~Core(){
-      // the auto constructs a ref to std::pair<std::string, nyom::logfile_t>
-      // would prefer to do this here explicitly, but the compiler complains
-      // for some esoteric reason
-      for( auto & logfile : logfiles ){
-        if( logfile.second.file.is_open() ){
-          logfile.second.file.close();
-        }
-      }
+      sw.elapsed_print("nyom::Core lifetime");
     }
 
     /**
@@ -111,17 +124,21 @@ class Core {
       if( log_location == log_master && geom.get_myrank() != 0 ){
         return;
       } 
-      
-      std::string key = objname;
-      if( log_location != log_master ){
-        key = key + "_p" + std::to_string(geom.get_myrank());
-      }
-      key += "." + logtype_to_string(type);
 
-      if( logfiles.find(key) == logfiles.end() ){
-      //  logfiles.emplace( key, logfile_t(key) );
-      } else {
+      // TODO: there should be some debug level dependence here
+      if( geom.get_myrank() == 0 && cmd_options.count("verbose") ){
+        std::cout << msg << std::endl;
       }
+
+      std::string filename = "logs/" + objname;
+      if( log_location != log_master ){
+        filename += "_p" + std::to_string(geom.get_myrank());
+      }
+      filename += "." + logtype_to_string(type);
+      
+      std::ofstream file(filename, ios::app);
+      file << msg;
+      file.close();
     }
     
     void print_usage(void){
@@ -140,6 +157,10 @@ class Core {
         std::cout << msg << std::endl;
       }
     }
+    
+    YAML::Node input_node;
+    po::variables_map cmd_options;
+    nyom::Geometry geom;
 
   private:
     void declare_cmd_options(void){
@@ -147,19 +168,15 @@ class Core {
         ("help,h", "usage information")
         ("input,i",
          po::value<std::string>()->default_value( std::string("config.yaml") ), 
-         "filename of nyom YAML-formatted input file");
+         "filename of YAML-formatted nyom input file")
+        ("verbose,v", "verbose core output");
     }
 
     po::options_description cmd_desc;
-    po::variables_map cmd_options;
-
-    nyom::Geometry geom;
-
-    unordered_map<std::string,logfile_t> logfiles;
-
-    YAML::Node input_node;
 
     bool initialised;
+
+    nyom::Stopwatch sw;
 };
 
 }

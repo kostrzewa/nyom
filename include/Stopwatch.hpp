@@ -35,7 +35,8 @@ class Stopwatch {
       MPI_Comm_rank(MPI_COMM_WORLD,
                     &rank);
       MPI_Comm_size(MPI_COMM_WORLD,
-                    &Nranks); 
+                    &Nranks);
+      reset();
     }
 
     void reset(void){
@@ -75,7 +76,7 @@ class Stopwatch {
     nyom::duration elapsed_print(const char* const name){
       nyom::duration duration = elapsed();
       if(rank==0){ 
-        cout << "Time for " << name << " " << duration.mean 
+        cout << name << " " << duration.mean 
           << " seconds" << std::endl
           << "min(" << duration.min << ") max(" 
           << duration.max << ")" << std::endl;

@@ -3,18 +3,18 @@
 #include "Core.hpp"
 #include "Logfile.hpp"
 
-TEST(InitCore, Test1)
+TEST(Core, Instantiation)
 {
-  EXPECT_EQ(0,0);
-}
-
-TEST(Logfile, instantiation)
-{
-  nyom::logfile_t test("testfile");
   EXPECT_EQ(0,0);
 }
 
 int main(int argc, char** argv){
   testing::InitGoogleTest(&argc, argv);
+  nyom::Core core(argc,argv);
+
+  core.Logger("hatchepsut",
+              nyom::log_perf,
+              "This thing is really fast!!!");
+
   return RUN_ALL_TESTS();
 }
