@@ -67,7 +67,7 @@ nyom::LapH_eigsys make_LapH_eigsys(const int Nev,
 
 void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
                                  const std::string path,
-                                 const int cid,
+                                 const int gauge_conf_id,
                                  const nyom::Core & core){
 
   const int Nev = V.lens[LAPH_DIM_EV];
@@ -139,7 +139,7 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
       int gt = Nt_local*core.geom.mpi.proc_coords[0] + t;
       std::stringstream filename;
       filename << path << "/eigenvectors."
-        << std::setfill('0') << std::setw(4) << cid << '.'
+        << std::setfill('0') << std::setw(4) << gauge_conf_id << '.'
         << std::setfill('0') << std::setw(3) << gt;
 
       std::ifstream ev_file(filename.str(), 
@@ -184,7 +184,7 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
 
 void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
                                 const std::string path,
-                                const int cid,
+                                const int gauge_conf_id,
                                 const nyom::Core & core){
 
   const int Nev = V.lens[LAPH_DIM_EV];
@@ -255,7 +255,7 @@ void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
       int64_t gt = t + core.geom.mpi.proc_coords[0]*Nt_local;
       std::stringstream filename;
       filename << path << "/eigenvectors."
-        << std::setfill('0') << std::setw(4) << cid << '.'
+        << std::setfill('0') << std::setw(4) << gauge_conf_id << '.'
         << std::setfill('0') << std::setw(3) << gt;
       
       std::ofstream ev_file(filename.str(),

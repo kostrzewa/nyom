@@ -1,4 +1,4 @@
-/***********************************************************************
+/**********************************************************************
  * Copyright (C) 2018 Bartosz Kostrzewa
  *
  * This file is part of nyom.
@@ -19,21 +19,35 @@
 
 #pragma once
 
-#include "simple_types.hpp"
+#include "Core.hpp"
 
-class stochPeram {
-  public:
-    stochPeram(){
-    }
+namespace nyom {
 
-  private:
-    dilution_t dil_t_E;
-    dilution_t dil_t_T;
-    dilution_t dil_t_D;
+typedef enum Perambulator_dims_t {
+  PERAM_DIM_ESNK = 0,
+  PERAM_DIM_ESRC,
+  PERAM_DIM_DSNK,
+  PERAM_DIM_DSRC,
+  PERAM_DIM_TSNK,
+  PERAM_DIM_TSRC
+} Perambulator_dims_t;
 
-    int64_t dilE;
-    int64_t dilT;
-    int64_t dilD;
+typedef CTF::Tensor< complex<double> > Perambulator;
 
-};
+nyom::Perambulator make_Perambulator(const int Nev,
+                                     const int Nt_src,
+                                     const int Nt_snk,
+                                     const nyom::Core & core){
+  int shapes[6] = {NS, NS, NS, NS, NS, NS};
+  int sizes[6];
+  sizes[PERAM_DIM_ESNK] = Nev;
+  sizes[PERAM_DIM_ESRC] = Nev;
+  sizes[PERAM_DIM_DSNK] = 4;
+  sizes[PERAM_DIM_DSRC] = 4;
+  sizes[PERAM_DIM_TSNK] = Nt_snk;
+  sizes[PERAM_DIM_TSRC] = Nt_src;
+  return( CTF::Tensor< complex<double> >(6, sizes, shapes, core.geom.get_world() ) );
+}
+
+} // namespace
 
