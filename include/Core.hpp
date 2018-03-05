@@ -120,7 +120,8 @@ class Core {
     void Logger(const std::string objname,
                 const logtype_t type,
                 const std::string msg,
-                const log_location_t log_location = log_master){
+                const log_location_t log_location = log_master) const
+    {
       if( log_location == log_master && geom.get_myrank() != 0 ){
         return;
       } 
