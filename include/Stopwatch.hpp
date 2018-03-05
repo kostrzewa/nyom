@@ -20,6 +20,7 @@
 #pragma once
 
 #include <chrono>
+#include <mpi.h>
 
 namespace nyom {
 
@@ -32,9 +33,19 @@ namespace nyom {
 class Stopwatch {
   public:
     Stopwatch() {
-      MPI_Comm_rank(MPI_COMM_WORLD,
+      comm = MPI_COMM_WORLD;
+      init();
+    }
+
+    Stopwatch(MPI_Comm comm_in){
+      comm = comm_in;
+      init();
+    }
+
+    void init(){
+      MPI_Comm_rank(comm,
                     &rank);
-      MPI_Comm_size(MPI_COMM_WORLD,
+      MPI_Comm_size(comm,
                     &Nranks);
       reset();
     }
@@ -55,7 +66,7 @@ class Stopwatch {
                     1,
                     MPI_DOUBLE,
                     MPI_SUM,
-                    MPI_COMM_WORLD);
+                    comm);
       duration.mean = duration.mean / Nranks;
 
       MPI_Allreduce(&seconds,
@@ -63,13 +74,13 @@ class Stopwatch {
                     1,
                     MPI_DOUBLE,
                     MPI_MIN,
-                    MPI_COMM_WORLD);
+                    comm);
       MPI_Allreduce(&seconds,
                     &(duration.max),
                     1,
                     MPI_DOUBLE,
                     MPI_MAX,
-                    MPI_COMM_WORLD);
+                    comm);
       return(duration);
     }
 
@@ -94,6 +105,7 @@ class Stopwatch {
     std::chrono::time_point<std::chrono::steady_clock> time;
     int rank;
     int Nranks;
+    MPI_Comm comm;
 };
 
 } //namespace(nyom)
