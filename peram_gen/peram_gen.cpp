@@ -73,7 +73,7 @@ int main(int argc, char ** argv){
   CTF::Tensor<complex<double>> prop_proj(3, sizes, shapes, core.geom.get_world());
   CTF::Tensor<complex<double>> src_proj(3, sizes, shapes, core.geom.get_world());
 
-  for(int cid = conf_start; cid < conf_end; cid += conf_stride){ 
+  for(int cid = conf_start; cid <= conf_end; cid += conf_stride){ 
     tmLQCD_read_gauge( cid );
     read_LapH_eigsys_from_files(/* &LapH_eigsys */ V,
                                 ev_path,

@@ -99,10 +99,10 @@ public:
   void push(spinor * const propagator,
             const nyom::Core &core){
     
-    int Nt = core.input_node["Lt"].as<int>();
-    int Nx = core.input_node["Ls"].as<int>();
-    int Ny = Nx;
-    int Nz = Ny;
+    int Nt = core.input_node["Nt"].as<int>();
+    int Nx = core.input_node["Nx"].as<int>();
+    int Ny = core.input_node["Ny"].as<int>();
+    int Nz = core.input_node["Nz"].as<int>();
 
     int64_t npair = 4*3*VOLUME;
     std::vector<int64_t> indices( 4*3*VOLUME );
