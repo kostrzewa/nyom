@@ -57,29 +57,6 @@ class Geometry {
       MPI_Comm_size(MPI_COMM_WORLD, &Nranks);
       MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-      //// partition the ranks in two dimensions along time and eigenvector extents
-      //int ranks_remaining;
-      //Nranks_t = gcd(Nranks, Nt);
-      //ranks_remaining = Nranks / Nranks_t;
-      //Nranks_ev = gcd(ranks_remaining, Nev);
-      //ranks_remaining = ranks_remaining / Nranks_ev;
-      //if( ranks_remaining != 1 ){
-      //  std::stringstream ss;
-      //  ss << "Number of MPI ranks " <<
-      //    Nranks <<
-      //    " cannot be partitioned into dimensions " <<
-      //    "Nt = " << Nt << " and " <<
-      //    "Nev = " << Nev << "!\n";
-      //  throw std::runtime_error(ss.str());
-      //}
-
-      //local_Nt = Nt / Nranks_t;
-      //local_Nev = Nev / Nranks_ev;
-      //dim_Nranks[LAPH_DIM_T] = Nranks_t;
-      //dim_Nranks[LAPH_DIM_EV] = Nranks_ev;
-
-      //MPI_Dims_create(Nranks, 2, dim_Nranks);
-
       world = new CTF::World(argc,argv);
     }
 

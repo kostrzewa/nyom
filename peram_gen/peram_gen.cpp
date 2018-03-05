@@ -26,87 +26,109 @@
 
 int main(int argc, char ** argv){
   nyom::Core core(argc,argv);
-  tmLQCD_read_gauge( 400 );
+
+  int Nt  = core.input_node["Nt"].as<int>();
+  int Nx  = core.input_node["Nx"].as<int>();
+  int Ny  = core.input_node["Ny"].as<int>();
+  int Nz  = core.input_node["Nz"].as<int>();
+
+  int Nev = core.input_node["Nev"].as<int>();
+
+  int conf_start = core.input_node["conf_start"].as<int>();
+  int conf_stride = core.input_node["conf_stride"].as<int>();
+  int conf_end = core.input_node["conf_end"].as<int>(); 
+
+  std::string ev_path = core.input_node["ev_path"].as<std::string>();
 
   nyom::Stopwatch sw;
 
-  // loop over configurations
-  //   init empty perambulator
-  //   tmLQCD read gauge field
-  //   nyom read eigensystem
-  //
-  //   loop over time-slices
-  //     create_source
-  //     add to perambulator
-  //   
-  //   write perambulator to disk
-  
-  nyom::Perambulator peram = nyom::make_Perambulator(/* Nev */    48,
-                                                     /* Nt_src */ 24,
-                                                     /* Nt_snk */ 24,
+  nyom::Perambulator peram = nyom::make_Perambulator(Nev,
+                                                     /* Nt_src */ Nt,
+                                                     /* Nt_snk */ Nt,
                                                      core);
 
   nyom::SpinDilutedTimeslicePropagatorVector src(core);
   nyom::SpinDilutedTimeslicePropagatorVector prop(core);
 
-  nyom::LapH_eigsys V = nyom::make_LapH_eigsys(/* Nev */ 48,
-                                               /* Nt  */ 24,
-                                               /* Nx  */ 12,
-                                               /* Ny  */ 12,
-                                               /* Nz  */ 12,
+  nyom::LapH_eigsys V = nyom::make_LapH_eigsys(Nev,
+                                               Nt,
+                                               Nx,
+                                               Ny,
+                                               Nz,
                                                /* Nc  */ 3,
                                                core.geom.get_world());
 
-  read_LapH_eigsys_from_files(V,
-                              "ev",
-                              400,
-                              core);
-
-  sw.reset();
-  nyom::LapH_eigsys Vdagger(V);
-  ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Vdagger["cizyxt"]);
-  sw.elapsed_print("Vdagger");
-
   spinor* source = new spinor[VOLUME];
   spinor* propagator = new spinor[VOLUME];
+ 
+  // these two tensors will serve as projectors from the eigensystem
+  // to the source spinor (to compute the elements of the perambulator)
+  // and for the projection of the resulting propagator spinor
+  // to the perambulator tensor
+  int shapes[3] = {NS, NS, NS};
+  int sizes[3];
+  sizes[0] = Nev;
+  sizes[1] = 4;
+  sizes[2] = Nt;
+  CTF::Tensor<complex<double>> prop_proj(3, sizes, shapes, core.geom.get_world());
+  CTF::Tensor<complex<double>> src_proj(3, sizes, shapes, core.geom.get_world());
 
-  for(int64_t tsrc = 0; tsrc < 24; ++tsrc){
-    nyom::One one_tsrc = nyom::make_One(24, tsrc, core.geom.get_world() );
-    for(int64_t dsrc = 0; dsrc < 4; ++dsrc){
-      nyom::One one_dsrc = nyom::make_One(4, dsrc, core.geom.get_world() );
-      for(int64_t esrc = 0; esrc < 48; ++esrc){
-        nyom::One one_esrc = nyom::make_One(48, esrc, core.geom.get_world() );
+  for(int cid = conf_start; cid < conf_end; cid += conf_stride){ 
+    tmLQCD_read_gauge( cid );
+    read_LapH_eigsys_from_files(/* &LapH_eigsys */ V,
+                                ev_path,
+                                cid,
+                                core);
 
-        int shapes[3] = {NS, NS, NS};
-        int sizes[3] = {48, 4, 24};
-        CTF::Tensor<complex<double>> prop_proj(3, sizes, shapes, core.geom.get_world());
-        CTF::Tensor<complex<double>> src_proj(3, sizes, shapes, core.geom.get_world());
-        src_proj["jqs"] =  one_esrc["j"] * one_dsrc["q"] * one_tsrc["s"];
-         
-        sw.reset();
-        src.tensor["txyzdc"] = V["czyxEt"] * src_proj["Edt"];
-        src.push(source, core);
-        sw.elapsed_print("LapH eigenvector to source projection");
+    sw.reset();
+    nyom::LapH_eigsys Vdagger(V);
+    ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Vdagger["cizyxt"]);
+    sw.elapsed_print("Vdagger");
 
-        sw.reset();
-        tmLQCD_invert(reinterpret_cast<double*>(&propagator[0]),
-                      reinterpret_cast<double*>(&source[0]),
-                      0, 0);
-        sw.elapsed_print("Inversion");   
+    for(int tsrc = 0; tsrc < Nt; ++tsrc){
+      // vector with a single 1.0 for the source time slice
+      nyom::One one_tsrc = nyom::make_One(Nt, tsrc, core.geom.get_world() );
+      for(int dsrc = 0; dsrc < 4; ++dsrc){
+        // vector with a single 1.0 for the source dirac component
+        nyom::One one_dsrc = nyom::make_One(4, dsrc, core.geom.get_world() );
+        for(int esrc = 0; esrc < Nev; ++esrc){
+          // vector with a single 1.0 for the source LapH eigenvector
+          nyom::One one_esrc = nyom::make_One(Nev, esrc, core.geom.get_world() );
 
-        sw.reset();
-        prop.fill(propagator, dsrc, tsrc, core);
-        sw.elapsed_print("Perambulator prop to tensor");
-        
-        sw.reset();
-        // project the propagator with the sink eigenvectors
-        prop_proj["ipt"] = prop.tensor["tXYZpC"] * Vdagger["CZYXit"];
-        // outer product with source projector 
-        peram["ijpqts"] += prop_proj["ipt"] * src_proj["jqs"];
-        sw.elapsed_print("Propagator to perambulator projection");
-      }
-    }
-  }
+          // outer product of the "one" vectors in time, Dirac and LapH eigenvector space
+          // this is a three-index tensor with a single 1.0 for the given combination
+          src_proj["jqs"] =  one_esrc["j"] * one_dsrc["q"] * one_tsrc["s"];
+          
+          // project source eigenvector on source time slice and with source Dirac
+          // index into a spinor
+          sw.reset();
+          src.tensor["txyzdc"] = V["czyxEt"] * src_proj["Edt"];
+          // reshape to tmLQCD format
+          src.push(source, core);
+          sw.elapsed_print("LapH eigenvector to source projection");
+
+          sw.reset();
+          tmLQCD_invert(reinterpret_cast<double*>(&propagator[0]),
+                        reinterpret_cast<double*>(&source[0]),
+                        0, 0);
+          sw.elapsed_print("Inversion");   
+
+          sw.reset();
+          // fully spin-diluted timeslice propagator to tensor
+          prop.fill(propagator, dsrc, tsrc, core);
+          sw.elapsed_print("Perambulator prop to tensor");
+          
+          sw.reset();
+          // project the propagator with the sink eigenvectors
+          prop_proj["ipt"] = prop.tensor["tXYZpC"] * Vdagger["CZYXit"];
+          // outer product with source projector 
+          peram["ijpqts"] += prop_proj["ipt"] * src_proj["jqs"];
+          sw.elapsed_print("Propagator to perambulator projection");
+        } // esrc
+      } // dsrc 
+    } // tsrc
+    // TODO: PERAMBULATOR I/O
+  } // cid
 
   delete[] source;
   delete[] propagator;
