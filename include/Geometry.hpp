@@ -51,8 +51,8 @@ class Geometry {
       if( tm_init_state != 0 ){
         throw std::runtime_error("tmLQCD_invert_init had nonzero exit status!\n");
       }
-      tmLQCD_get_mpi_params(&mpi);
-      tmLQCD_get_lat_params(&lat);
+      tmLQCD_get_mpi_params(&tmlqcd_mpi);
+      tmLQCD_get_lat_params(&tmlqcd_lat);
 
       MPI_Comm_size(MPI_COMM_WORLD, &Nranks);
       MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
@@ -82,8 +82,8 @@ class Geometry {
     return Nranks;
   }
 
-  tmLQCD_lat_params lat;
-  tmLQCD_mpi_params mpi;
+  tmLQCD_lat_params tmlqcd_lat;
+  tmLQCD_mpi_params tmlqcd_mpi;
 
   private:
     CTF::World* world;

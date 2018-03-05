@@ -59,22 +59,27 @@ public:
     int Ny = core.input_node["Ny"].as<int>();
     int Nz = core.input_node["Nz"].as<int>();
 
-    int64_t npair = 4*3*VOLUME;
-    std::vector<int64_t> indices( 4*3*VOLUME );
-    std::vector<complex<double>> pairs( 4*3*VOLUME );
+    int local_volume = core.geom.tmlqcd_lat.T  *
+                       core.geom.tmlqcd_lat.LX *
+                       core.geom.tmlqcd_lat.LY *
+                       core.geom.tmlqcd_lat.LZ;
+
+    int64_t npair = 4*3*local_volume;
+    std::vector<int64_t> indices( 4*3*local_volume );
+    std::vector<complex<double>> pairs( 4*3*local_volume );
     int64_t counter = 0;
 
-    for(int64_t t = 0; t < T; ++t){                                                                                                                        
-      int64_t gt = T*core.geom.mpi.proc_coords[0] + t;
+    for(int64_t t = 0; t < core.geom.tmlqcd_lat.T; ++t){                                                                                                                        
+      int64_t gt = core.geom.tmlqcd_lat.T*core.geom.tmlqcd_mpi.proc_coords[0] + t;
 
-      for(int64_t x = 0; x < LX; ++x){
-        int64_t gx = LX*core.geom.mpi.proc_coords[1] + x;
+      for(int64_t x = 0; x < core.geom.tmlqcd_lat.LX; ++x){
+        int64_t gx = core.geom.tmlqcd_lat.LX*core.geom.tmlqcd_mpi.proc_coords[1] + x;
 
-        for(int64_t y = 0; y < LY; ++y){
-          int64_t gy = LY*core.geom.mpi.proc_coords[2] + y;
+        for(int64_t y = 0; y < core.geom.tmlqcd_lat.LY; ++y){
+          int64_t gy = core.geom.tmlqcd_lat.LY*core.geom.tmlqcd_mpi.proc_coords[2] + y;
 
-          for(int64_t z = 0; z < LZ; ++z){
-            int64_t gz = LZ*core.geom.mpi.proc_coords[3] + z;
+          for(int64_t z = 0; z < core.geom.tmlqcd_lat.LZ; ++z){
+            int64_t gz = core.geom.tmlqcd_lat.LZ*core.geom.tmlqcd_mpi.proc_coords[3] + z;
 
             for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
               for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
@@ -103,22 +108,27 @@ public:
     int Nx = core.input_node["Nx"].as<int>();
     int Ny = core.input_node["Ny"].as<int>();
     int Nz = core.input_node["Nz"].as<int>();
+    
+    int local_volume = core.geom.tmlqcd_lat.T  *
+                       core.geom.tmlqcd_lat.LX *
+                       core.geom.tmlqcd_lat.LY *
+                       core.geom.tmlqcd_lat.LZ;
 
-    int64_t npair = 4*3*VOLUME;
-    std::vector<int64_t> indices( 4*3*VOLUME );
+    int64_t npair = 4*3*local_volume;
+    std::vector<int64_t> indices( 4*3*local_volume );
     int64_t counter = 0;
 
-    for(int64_t t = 0; t < T; ++t){                                                                                                                        
-      int64_t gt = T*core.geom.mpi.proc_coords[0] + t;
+    for(int64_t t = 0; t < core.geom.tmlqcd_lat.T; ++t){
+      int64_t gt = core.geom.tmlqcd_lat.T*core.geom.tmlqcd_mpi.proc_coords[0] + t;
 
-      for(int64_t x = 0; x < LX; ++x){
-        int64_t gx = LX*core.geom.mpi.proc_coords[1] + x;
+      for(int64_t x = 0; x < core.geom.tmlqcd_lat.LX; ++x){
+        int64_t gx = core.geom.tmlqcd_lat.LX*core.geom.tmlqcd_mpi.proc_coords[1] + x;
 
-        for(int64_t y = 0; y < LY; ++y){
-          int64_t gy = LY*core.geom.mpi.proc_coords[2] + y;
+        for(int64_t y = 0; y < core.geom.tmlqcd_lat.LY; ++y){
+          int64_t gy = core.geom.tmlqcd_lat.LY*core.geom.tmlqcd_mpi.proc_coords[2] + y;
 
-          for(int64_t z = 0; z < LZ; ++z){
-            int64_t gz = LZ*core.geom.mpi.proc_coords[3] + z;
+          for(int64_t z = 0; z < core.geom.tmlqcd_lat.LZ; ++z){
+            int64_t gz = core.geom.tmlqcd_lat.LZ*core.geom.tmlqcd_mpi.proc_coords[3] + z;
 
             for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
               for(int64_t snk_c = 0; snk_c < 3; ++snk_c){

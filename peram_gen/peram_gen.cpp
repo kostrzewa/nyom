@@ -58,8 +58,10 @@ int main(int argc, char ** argv){
                                                /* Nc  */ 3,
                                                core.geom.get_world());
 
-  spinor* source = new spinor[VOLUME];
-  spinor* propagator = new spinor[VOLUME];
+  int64_t local_volume = Nt*Nx*Ny*Nz / core.geom.tmlqcd_mpi.nproc;
+
+  spinor* source = new spinor[local_volume];
+  spinor* propagator = new spinor[local_volume];
  
   // these two tensors will serve as projectors from the eigensystem
   // to the source spinor (to compute the elements of the perambulator)

@@ -104,16 +104,16 @@ namespace nyom {
 
       int64_t counter = 0;
       for( int t = 0; t < Nt_local; ++t){
-        int gt = Nt_local*core.geom.mpi.proc_coords[0] + t;
+        int gt = Nt_local*core.geom.tmlqcd_mpi.proc_coords[0] + t;
         
         for( int x = 0; x < Nx_local; ++x){
-          int gx = Nx_local*core.geom.mpi.proc_coords[1] + x;
+          int gx = Nx_local*core.geom.tmlqcd_mpi.proc_coords[1] + x;
 
           for( int y = 0; y < Ny_local; ++y){
-            int gy = Ny_local*core.geom.mpi.proc_coords[2] + y;
+            int gy = Ny_local*core.geom.tmlqcd_mpi.proc_coords[2] + y;
 
             for( int z = 0; z < Nz_local; ++z){
-              int gz = Nz_local*core.geom.mpi.proc_coords[3] + z;
+              int gz = Nz_local*core.geom.tmlqcd_mpi.proc_coords[3] + z;
 
               for( int cr = 0; cr < Nc; ++cr ){
                 for( int cc = 0; cc < Nc; ++cc ){
