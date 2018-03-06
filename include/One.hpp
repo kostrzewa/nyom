@@ -66,7 +66,7 @@ nyom::BiOne make_BiOne(const int Nidx,
   return ret;
 }
 
-nyom::BiOne make_TriOne(const int Nidx,
+nyom::TriOne make_TriOne(const int Nidx,
                         const int idx_nonzero,
                         CTF::World &world){
   const int shapes[3] = {NS,NS,NS};
