@@ -133,9 +133,12 @@ int main(int argc, char ** argv){
           sw.elapsed_print("Source tensor to spinor");
 
           sw.reset();
-          invert_quda_direct(reinterpret_cast<double*>(&propagator[0]),
-                             reinterpret_cast<double*>(&source[0]),
-                             0, 1);
+          //invert_quda_direct(reinterpret_cast<double*>(&propagator[0]),
+          //                   reinterpret_cast<double*>(&source[0]),
+          //                   0, 1);
+          tmLQCD_invert(reinterpret_cast<double*>(&propagator[0]),
+                        reinterpret_cast<double*>(&source[0]),
+                        0, 0);
           sw.elapsed_print("Inversion");   
 
           sw.reset();
