@@ -24,6 +24,8 @@
 #include "One.hpp"
 #include "Stopwatch.hpp"
 
+#include <sstream>
+
 int main(int argc, char ** argv){
   nyom::Core core(argc,argv);
 
@@ -87,6 +89,12 @@ int main(int argc, char ** argv){
     ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Vdagger["cizyxt"]);
     sw.elapsed_print("Vdagger");
 
+    CTF::Flop_counter flop_counter;
+    int64_t flops;
+    nyom::duration elapsed;
+
+    std::stringstream msg;
+
     for(int tsrc = 0; tsrc < Nt; ++tsrc){
       // vector with a single 1.0 for the source time slice
       nyom::One one_tsrc = nyom::make_One(Nt, tsrc, core.geom.get_world() );
@@ -100,19 +108,34 @@ int main(int argc, char ** argv){
           // outer product of the "one" vectors in time, Dirac and LapH eigenvector space
           // this is a three-index tensor with a single 1.0 for the given combination
           src_proj["jqs"] =  one_esrc["j"] * one_dsrc["q"] * one_tsrc["s"];
-          
+
           // project source eigenvector on source time slice and with source Dirac
           // index into a spinor
+          flop_counter.zero();
           sw.reset();
-          src.tensor["txyzdc"] = V["czyxEt"] * src_proj["Edt"];
+          src.tensor["cdzyxt"] = V["czyxEt"] * src_proj["Edt"];
+          //src.tensor["cdzyxt"] = one_dsrc["d"] * V["czyxEt"] * one_esrc["E"] * one_tsrc["t"];
+          flops = flop_counter.count();
+          elapsed = sw.elapsed_print("LapH eigenvector to source projection");
+          msg << "src_project(time,flops,Gflop/s): " << elapsed.mean << " "  << 
+            flops << " " << (1.0e-9)*flops/elapsed.mean << std::endl;
+          core.Logger("src_project",
+                      nyom::log_perf,
+                      msg.str());
+          msg.str("");
+
           // reshape to tmLQCD format
-          src.push(source, core);
-          sw.elapsed_print("LapH eigenvector to source projection");
+          sw.reset();
+          src.push(source,
+                   /* d_in */ dsrc,
+                   /* t_in */ tsrc,
+                   core);
+          sw.elapsed_print("Source tensor to spinor");
 
           sw.reset();
-          tmLQCD_invert(reinterpret_cast<double*>(&propagator[0]),
-                        reinterpret_cast<double*>(&source[0]),
-                        0, 0);
+          invert_quda_direct(reinterpret_cast<double*>(&propagator[0]),
+                             reinterpret_cast<double*>(&source[0]),
+                             0, 1);
           sw.elapsed_print("Inversion");   
 
           sw.reset();
@@ -120,12 +143,32 @@ int main(int argc, char ** argv){
           prop.fill(propagator, dsrc, tsrc, core);
           sw.elapsed_print("Perambulator prop to tensor");
           
+          flop_counter.zero();
           sw.reset();
           // project the propagator with the sink eigenvectors
-          prop_proj["ipt"] = prop.tensor["tXYZpC"] * Vdagger["CZYXit"];
+          prop_proj["ipt"] = prop.tensor["CpZYXt"] * Vdagger["CZYXit"];
+          elapsed = sw.elapsed_print("Propagator to perambulator sink projection");
+          flops = flop_counter.count();
+          msg << "Vdagger_project(time,flops,Gflop/s): " << elapsed.mean << " "  << 
+            flops << " " << (1.0e-9)*flops/elapsed.mean << std::endl;
+          core.Logger("Vdagger_project",
+                      nyom::log_perf,
+                      msg.str());
+          msg.str("");
+
+          flop_counter.zero();
+          sw.reset();
           // outer product with source projector 
           peram["ijpqts"] += prop_proj["ipt"] * src_proj["jqs"];
-          sw.elapsed_print("Propagator to perambulator projection");
+          //peram["ijpqts"] += prop_proj["ipt"] * one_esrc["j"] * one_dsrc["q"] * one_tsrc["s"];
+          elapsed = sw.elapsed_print("Perambulator source index outer product");
+          flops = flop_counter.count();
+          msg << "Peram_outer(time,flops,Gflop/s): " << elapsed.mean << " "  << 
+            flops << " " << (1.0e-9)*flops/elapsed.mean << std::endl;
+          core.Logger("Peram_outer",
+                      nyom::log_perf,
+                      msg.str());
+          msg.str("");
         } // esrc
       } // dsrc 
     } // tsrc

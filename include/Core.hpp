@@ -89,9 +89,6 @@ class Core {
       } else {
         if( !fs::is_directory("logs") ){
           throw( std::runtime_error("File 'logs' exists, but is not a directory!\n") );
-        } else {
-          fs::file_status s = fs::status("logs");
-          printf("%o\n", s.permissions());
         }
       }
     }
