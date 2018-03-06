@@ -28,12 +28,12 @@
 namespace nyom {
 
 typedef enum SpinDilutedTimeslicePropagatorVector_dims_t {
-  SDTPV_DIM_TSNK = 0,
-  SDTPV_DIM_XSNK,
-  SDTPV_DIM_YSNK,
-  SDTPV_DIM_ZSNK,
+  SDTPV_DIM_CSNK = 0,
   SDTPV_DIM_DSNK,
-  SDTPV_DIM_CSNK
+  SDTPV_DIM_ZSNK,
+  SDTPV_DIM_YSNK,
+  SDTPV_DIM_XSNK,
+  SDTPV_DIM_TSNK
 } SpinDilutedTimeslicePropagatorVector_dims_t;
 
 class SpinDilutedTimeslicePropagatorVector
@@ -64,12 +64,13 @@ public:
                        core.geom.tmlqcd_lat.LY *
                        core.geom.tmlqcd_lat.LZ;
 
+    nyom::Stopwatch sw;
     int64_t npair = 4*3*local_volume;
     std::vector<int64_t> indices( 4*3*local_volume );
-    std::vector<complex<double>> pairs( 4*3*local_volume );
     int64_t counter = 0;
 
-    for(int64_t t = 0; t < core.geom.tmlqcd_lat.T; ++t){                                                                                                                        
+    for(int64_t t = 0; t < core.geom.tmlqcd_lat.T; ++t){
+
       int64_t gt = core.geom.tmlqcd_lat.T*core.geom.tmlqcd_mpi.proc_coords[0] + t;
 
       for(int64_t x = 0; x < core.geom.tmlqcd_lat.LX; ++x){
@@ -83,15 +84,13 @@ public:
 
             for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
               for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
-                indices[counter] = snk_c * (Nt*Nx*Ny*Nz*4) +
-                                   snk_d * (Nt*Nx*Ny*Nz)   +
-                                   gz    * (Nt*Nx*Ny)      +
-                                   gy    * (Nt*Nx)         +
-                                   gx    * (Nt)            +
-                                   gt;
+                indices[counter] = gt    * (3*4*Nz*Ny*Nx) +
+                                   gx    * (3*4*Nz*Ny)    +
+                                   gy    * (3*4*Nz)       +
+                                   gz    * (3*4)          +
+                                   snk_d * (3)            +
+                                   snk_c;
 
-                pairs[counter] = complex<double>( spinor_get_elem(propagator, snk_d, snk_c, 0),
-                                                  spinor_get_elem(propagator, snk_d, snk_c, 1) );
                 counter++;
               }
             }
@@ -99,9 +98,14 @@ public:
         }
       }
     }
+    sw.elapsed_print_and_reset("Propagator fill index calculation");
+    tensor.write(counter, indices.data(), reinterpret_cast<const complex<double>*>(&propagator[0]) );
+    sw.elapsed_print("Propagator tensor write");
   }
 
   void push(spinor * const propagator,
+            const int64_t d_in,
+            const int64_t t_in,
             const nyom::Core &core){
     
     int Nt = core.input_node["Nt"].as<int>();
@@ -113,14 +117,21 @@ public:
                        core.geom.tmlqcd_lat.LX *
                        core.geom.tmlqcd_lat.LY *
                        core.geom.tmlqcd_lat.LZ;
-
+    
+    nyom::Stopwatch sw;
     int64_t npair = 4*3*local_volume;
-    std::vector<int64_t> indices( 4*3*local_volume );
-    int64_t counter = 0;
 
-    for(int64_t t = 0; t < core.geom.tmlqcd_lat.T; ++t){
-      int64_t gt = core.geom.tmlqcd_lat.T*core.geom.tmlqcd_mpi.proc_coords[0] + t;
+    // zero out the target spinor
+    memset(reinterpret_cast<void*>(&propagator[0]), 0, local_volume*sizeof(complex<double>));
 
+    // global indices of time slices residing on this process
+    int64_t gt_min = core.geom.tmlqcd_lat.T*core.geom.tmlqcd_mpi.proc_coords[0];
+    int64_t gt_max = gt_min + core.geom.tmlqcd_lat.T;
+
+    if( t_in >= gt_min && t_in < gt_max ){
+      int64_t counter = 0;
+      std::vector<int64_t> indices( 4*3*local_volume/core.geom.tmlqcd_lat.T );
+      int64_t gt = t_in;
       for(int64_t x = 0; x < core.geom.tmlqcd_lat.LX; ++x){
         int64_t gx = core.geom.tmlqcd_lat.LX*core.geom.tmlqcd_mpi.proc_coords[1] + x;
 
@@ -130,22 +141,22 @@ public:
           for(int64_t z = 0; z < core.geom.tmlqcd_lat.LZ; ++z){
             int64_t gz = core.geom.tmlqcd_lat.LZ*core.geom.tmlqcd_mpi.proc_coords[3] + z;
 
-            for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
-              for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
-                indices[counter] = snk_c * (Nt*Nx*Ny*Nz*4) +
-                                   snk_d * (Nt*Nx*Ny*Nz)   +
-                                   gz    * (Nt*Nx*Ny)      +
-                                   gy    * (Nt*Nx)         +
-                                   gx    * (Nt)            +
-                                   gt;
-                counter++;
-              }
-            }
-          }
-        }
-      }
+            for(int64_t c = 0; c < 3; ++c){
+              indices[counter] = t_in  * (3*4*Nz*Ny*Nx) +
+                                 gx    * (3*4*Nz*Ny)    +
+                                 gy    * (3*4*Nz)       +
+                                 gz    * (3*4)          +
+                                 d_in  * (3)            +
+                                 c;
+              counter++;
+            } // c
+          } // z
+        } // y
+      } // x
+      tensor.read(counter, indices.data(), reinterpret_cast<complex<double>*>(&propagator[0]) );
+    } else {
+      tensor.read(0, NULL, NULL);
     }
-    tensor.read(counter, indices.data(), reinterpret_cast<complex<double>*>(&propagator[0]) );
   }
 
   CTF::Tensor< complex<double> > tensor;
