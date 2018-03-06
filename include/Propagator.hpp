@@ -119,10 +119,9 @@ public:
                        core.geom.tmlqcd_lat.LZ;
     
     nyom::Stopwatch sw;
-    int64_t npair = 4*3*local_volume;
 
     // zero out the target spinor
-    memset(reinterpret_cast<void*>(&propagator[0]), 0, local_volume*sizeof(complex<double>));
+    memset(reinterpret_cast<void*>(&propagator[0]), 0, 4*3*local_volume*sizeof(complex<double>));
 
     // global indices of time slices residing on this process
     int64_t gt_min = core.geom.tmlqcd_lat.T*core.geom.tmlqcd_mpi.proc_coords[0];
