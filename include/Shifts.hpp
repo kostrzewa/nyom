@@ -58,16 +58,16 @@ namespace nyom {
     std::vector< CTF::Tensor< complex<double> > > shifts;
 
     sizes[0] = sizes[1] = Nx;
-    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world) );
-    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world) );
+    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_mx") );
+    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_px") );
     
     sizes[0] = sizes[1] = Ny;
-    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world) );
-    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world) );
+    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_my") );
+    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_py") );
     
     sizes[0] = sizes[1] = Nz;
-    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world) );
-    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world) );
+    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_mz") );
+    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_pz") );
 
     // for each direction (-+x , -+y, -+z), construct the shift
     // matrix (for shifts by a single lattice site)

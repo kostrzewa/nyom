@@ -64,7 +64,7 @@ namespace nyom {
     
     nyom::Gaugefield gf;
     for( auto & gfmu : gf.U ){
-      gfmu = CTF::Tensor< complex<double> >(6, sizes, shapes, core.geom.get_world() );
+      gfmu = CTF::Tensor< complex<double> >(6, sizes, shapes, core.geom.get_world(), "Gaugefield" );
     }
 
     return( gf );

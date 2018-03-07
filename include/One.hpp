@@ -43,11 +43,11 @@ nyom::One make_One(const int Nidx,
   const int shapes[1] = {NS};
   int sizes[1];
   sizes[0]  = Nidx;
-  nyom::One ret(1, sizes, shapes, world);
+  nyom::One ret(1, sizes, shapes, world, "One");
   const complex<double> entry = 1.0;
   const int64_t idx = idx_nonzero;
   ret.write((int64_t)1, &idx, &entry);
-  //ret.sparsify();
+  ret.sparsify();
   return ret;
 }
 
@@ -58,11 +58,11 @@ nyom::BiOne make_BiOne(const int Nidx,
   int sizes[2];
   sizes[0]  = Nidx;
   sizes[1]  = Nidx;
-  nyom::BiOne ret(2, sizes, shapes, world);
+  nyom::BiOne ret(2, sizes, shapes, world, "BiOne");
   int64_t gbl_idx = idx_nonzero*Nidx + idx_nonzero;
   complex<double> entry = 1.0;
   ret.write((int64_t)1, &gbl_idx, &entry);
-  //ret.sparsify();
+  ret.sparsify();
   return ret;
 }
 
@@ -74,11 +74,11 @@ nyom::TriOne make_TriOne(const int Nidx,
   sizes[0]  = Nidx;
   sizes[1]  = Nidx;
   sizes[2]  = Nidx;
-  nyom::BiOne ret(3, sizes, shapes, world);
+  nyom::BiOne ret(3, sizes, shapes, world, "TriOne");
   int64_t gbl_idx = idx_nonzero*Nidx*Nidx + idx_nonzero*Nidx + idx_nonzero;
   complex<double> entry = 1.0;
   ret.write((int64_t)1, &gbl_idx, &entry);
-  //ret.sparsify();
+  ret.sparsify();
   return ret;
 }
 

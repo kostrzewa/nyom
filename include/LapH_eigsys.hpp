@@ -62,7 +62,7 @@ nyom::LapH_eigsys make_LapH_eigsys(const int Nev,
   sizes[LAPH_DIM_Z]  = Nz;
   sizes[LAPH_DIM_EV] = Nev;
   sizes[LAPH_DIM_C]  = Nc;
-  return( CTF::Tensor< complex<double> >(6, sizes, shapes, world) );
+  return( CTF::Tensor< complex<double> >(6, sizes, shapes, world, "LapH_eigsys") );
 }
 
 void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
