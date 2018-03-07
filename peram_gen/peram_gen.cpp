@@ -49,7 +49,7 @@ int main(int argc, char ** argv){
                                                      /* Nt_snk */ Nt,
                                                      core);
 
-  nyom::SpinDilutedTimeslicePropagatorVector src(core);
+  nyom::SpinDilutedTimesliceSourceVector     src(core);
   nyom::SpinDilutedTimeslicePropagatorVector prop(core);
 
   nyom::LapH_eigsys V = nyom::make_LapH_eigsys(Nev,
@@ -66,16 +66,26 @@ int main(int argc, char ** argv){
   spinor* propagator = new spinor[local_volume];
  
   // these two tensors will serve as projectors from the eigensystem
-  // to the source spinor (to compute the elements of the perambulator)
+  // to the source spinor
   // and for the projection of the resulting propagator spinor
   // to the perambulator tensor
-  int shapes[3] = {NS, NS, NS};
-  int sizes[3];
-  sizes[0] = Nev;
-  sizes[1] = 4;
-  sizes[2] = Nt;
-  CTF::Tensor<complex<double>> prop_proj(3, sizes, shapes, core.geom.get_world());
-  CTF::Tensor<complex<double>> src_proj(3, sizes, shapes, core.geom.get_world());
+  int src_shapes[2] = {NS, NS};
+  int src_sizes[2];
+  src_sizes[0] = Nev;
+  src_sizes[1] = Nt;
+
+  int src_dof_shapes[3] = {NS, NS, NS};
+  int src_dof_sizes[3];
+  src_dof_sizes[0] = Nev;
+  src_dof_sizes[1] = 4;
+  src_dof_sizes[2] = Nt; 
+
+  int prop_shapes[3] = {NS, NS, NS};
+  int prop_sizes[3];
+  prop_sizes[0] = Nev;
+  prop_sizes[1] = 4;
+  prop_sizes[2] = Nt;
+  CTF::Tensor<complex<double>> proj_prop(3, prop_sizes, prop_shapes, core.geom.get_world());
 
   for(int cid = conf_start; cid <= conf_end; cid += conf_stride){ 
     tmLQCD_read_gauge( cid );
@@ -107,14 +117,22 @@ int main(int argc, char ** argv){
 
           // outer product of the "one" vectors in time, Dirac and LapH eigenvector space
           // this is a three-index tensor with a single 1.0 for the given combination
-          src_proj["jqs"] =  one_esrc["j"] * one_dsrc["q"] * one_tsrc["s"];
+          CTF::Tensor<complex<double>> src_proj(2, src_sizes, src_shapes, core.geom.get_world(), "src_proj");
+          src_proj["et"] =  one_esrc["e"] * one_tsrc["t"];
+          // sparsification seems to hurt performance for some reason...
+          //src_proj.sparsify();
+          
+          CTF::Tensor<complex<double>> src_dof(3, src_dof_sizes, src_dof_shapes, core.geom.get_world(), "src_dof");
+          src_dof["edt"] = one_esrc["e"] * one_dsrc["d"] * one_tsrc["t"];
+          // sparsification seems to hurt performance for some reason...
+          // src_dof.sparsify();
 
           // project source eigenvector on source time slice and with source Dirac
           // index into a spinor
           flop_counter.zero();
           sw.reset();
-          src.tensor["cdzyxt"] = V["czyxEt"] * src_proj["Edt"];
-          //src.tensor["cdzyxt"] = one_dsrc["d"] * V["czyxEt"] * one_esrc["E"] * one_tsrc["t"];
+          // this seems to be the most efficient ordering
+          src.tensor["czyx"] = src_proj["ET"] * V["czyxET"];
           flops = flop_counter.count();
           elapsed = sw.elapsed_print("LapH eigenvector to source projection");
           msg << "src_project(time,flops,Gflop/s): " << elapsed.mean << " "  << 
@@ -125,12 +143,10 @@ int main(int argc, char ** argv){
           msg.str("");
 
           // reshape to tmLQCD format
-          sw.reset();
           src.push(source,
                    /* d_in */ dsrc,
                    /* t_in */ tsrc,
                    core);
-          sw.elapsed_print("Source tensor to spinor");
 
           sw.reset();
           //invert_quda_direct(reinterpret_cast<double*>(&propagator[0]),
@@ -141,15 +157,16 @@ int main(int argc, char ** argv){
                         0, 0);
           sw.elapsed_print("Inversion");   
 
-          sw.reset();
-          // fully spin-diluted timeslice propagator to tensor
+          // propagator to tensor (has full complement of indices)
           prop.fill(propagator, dsrc, tsrc, core);
-          sw.elapsed_print("Perambulator prop to tensor");
           
           flop_counter.zero();
           sw.reset();
+          
           // project the propagator with the sink eigenvectors
-          prop_proj["ipt"] = prop.tensor["CpZYXt"] * Vdagger["CZYXit"];
+          // * proj_prop["ipt"] = prop.tensor["CpZYXt"] * Vdagger["CZYXit"]; // too slow ( 5 sec )
+          // Vdagger P order seems to be faster by about a factor of 4
+          proj_prop["ipt"] =  Vdagger["CZYXit"] * prop.tensor["CpZYXt"];
           elapsed = sw.elapsed_print("Propagator to perambulator sink projection");
           flops = flop_counter.count();
           msg << "Vdagger_project(time,flops,Gflop/s): " << elapsed.mean << " "  << 
@@ -161,9 +178,15 @@ int main(int argc, char ** argv){
 
           flop_counter.zero();
           sw.reset();
-          // outer product with source projector 
-          peram["ijpqts"] += prop_proj["ipt"] * src_proj["jqs"];
-          //peram["ijpqts"] += prop_proj["ipt"] * one_esrc["j"] * one_dsrc["q"] * one_tsrc["s"];
+          // outer product with non-zero source indices
+          // * peram["ijpqts"] += one_esrc["j"] * one_dsrc["q"] * one_tsrc["s"] * proj_prop["ipt"]; // this is awfully ( 23 sec )
+          // * peram["ijpqts"] += src_dof["jqs"] * proj_prop["ipt"]; // this is awfully slow ( 17 sec )
+          
+          // this is reasonable, but still too slow for comfort... 
+          // ( 4.8 sec with src_dof dense, 11 sec with src_dof sparse... )
+          // executing a manual "write" is probably faster..
+          //peram["ijpqts"] += proj_prop["ipt"] * src_dof["jqs"];
+          nyom::add_to_Perambulator( peram, proj_prop, tsrc, esrc, dsrc, core ); // 0.68 seconds...
           elapsed = sw.elapsed_print("Perambulator source index outer product");
           flops = flop_counter.count();
           msg << "Peram_outer(time,flops,Gflop/s): " << elapsed.mean << " "  << 
