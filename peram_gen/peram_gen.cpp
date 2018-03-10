@@ -23,6 +23,7 @@
 #include "LapH_eigsys.hpp"
 #include "One.hpp"
 #include "Stopwatch.hpp"
+#include "Functors.hpp"
 
 #include <sstream>
 
@@ -108,56 +109,64 @@ int main(int argc, char ** argv){
     for(int tsrc = 0; tsrc < Nt; ++tsrc){
       // vector with a single 1.0 for the source time slice
       nyom::One one_tsrc = nyom::make_One(Nt, tsrc, core.geom.get_world() );
-      for(int dsrc = 0; dsrc < 4; ++dsrc){
-        // vector with a single 1.0 for the source dirac component
-        nyom::One one_dsrc = nyom::make_One(4, dsrc, core.geom.get_world() );
-        for(int esrc = 0; esrc < Nev; ++esrc){
-          // vector with a single 1.0 for the source LapH eigenvector
-          nyom::One one_esrc = nyom::make_One(Nev, esrc, core.geom.get_world() );
+      for(int esrc = 0; esrc < Nev; ++esrc){
+        nyom::One one_esrc = nyom::make_One(Nev, esrc, core.geom.get_world() );
 
-          // outer product of the "one" vectors in time, Dirac and LapH eigenvector space
-          // this is a three-index tensor with a single 1.0 for the given combination
-          CTF::Tensor<complex<double>> src_proj(2, src_sizes, src_shapes, core.geom.get_world(), "src_proj");
-          src_proj["et"] =  one_esrc["e"] * one_tsrc["t"];
-          // sparsification seems to hurt performance for some reason...
-          //src_proj.sparsify();
-          
+        //outer product of the "one" vectors in time, Dirac and LapH eigenvector space
+        //this is a three-index tensor with a single 1.0 for the given combination
+        CTF::Tensor<complex<double>> src_proj(2, src_sizes, src_shapes, core.geom.get_world(), "src_proj");
+        src_proj["et"] =  one_esrc["e"] * one_tsrc["t"];
+        
+        sw.reset();
+        nyom::V_project_SpinDilutedTimesliceSourceVector src_project =
+          nyom::make_V_project_SpinDilutedTimesliceSourceVector(src,
+                                                                V,
+                                                                src_proj,
+                                                                tsrc,
+                                                                esrc,
+                                                                core);
+        sw.elapsed_print("Functor overhead");
+        
+        sw.reset();
+        src_project();
+        elapsed = sw.elapsed_print("LapH eigenvector to source projection");
+        msg << "src_project(time): " << elapsed.mean << std::endl;
+        core.Logger("src_project",
+                    nyom::log_perf,
+                    msg.str());
+        msg.str("");
+        
+        for(int dsrc = 0; dsrc < 4; ++dsrc){
+          // vector with a single 1.0 for the source dirac component
+          nyom::One one_dsrc = nyom::make_One(4, dsrc, core.geom.get_world() );
+
+          if( core.geom.get_myrank() == 0 ){
+            std::cout << "inverting t=" << tsrc << " esrs=" <<
+              esrc << " dsrc=" << dsrc << std::endl;
+          }
+
           CTF::Tensor<complex<double>> src_dof(3, src_dof_sizes, src_dof_shapes, core.geom.get_world(), "src_dof");
           src_dof["edt"] = one_esrc["e"] * one_dsrc["d"] * one_tsrc["t"];
           // sparsification seems to hurt performance for some reason...
           // src_dof.sparsify();
 
-          // project source eigenvector on source time slice and with source Dirac
-          // index into a spinor
-          flop_counter.zero();
-          sw.reset();
-          // this seems to be the most efficient ordering
-          src.tensor["czyx"] = src_proj["ET"] * V["czyxET"];
-          flops = flop_counter.count();
-          elapsed = sw.elapsed_print("LapH eigenvector to source projection");
-          msg << "src_project(time,flops,Gflop/s): " << elapsed.mean << " "  << 
-            flops << " " << (1.0e-9)*flops/elapsed.mean << std::endl;
-          core.Logger("src_project",
-                      nyom::log_perf,
-                      msg.str());
-          msg.str("");
-
-          // reshape to tmLQCD format
+          // reshape source to tmLQCD format into correct source Dirac index
           src.push(source,
                    /* d_in */ dsrc,
                    /* t_in */ tsrc,
                    core);
 
           sw.reset();
-          //invert_quda_direct(reinterpret_cast<double*>(&propagator[0]),
-          //                   reinterpret_cast<double*>(&source[0]),
-          //                   0, 1);
-          tmLQCD_invert(reinterpret_cast<double*>(&propagator[0]),
-                        reinterpret_cast<double*>(&source[0]),
-                        0, 0);
+          invert_quda_direct(reinterpret_cast<double*>(&propagator[0]),
+                             reinterpret_cast<double*>(&source[0]),
+                             0, 1);
+          //tmLQCD_invert(reinterpret_cast<double*>(&propagator[0]),
+          //              reinterpret_cast<double*>(&source[0]),
+          //              0, 0);
           sw.elapsed_print("Inversion");   
 
           // propagator to tensor (has full complement of indices)
+          // 2.5 seconds...
           prop.fill(propagator, dsrc, tsrc, core);
           
           flop_counter.zero();
@@ -166,7 +175,7 @@ int main(int argc, char ** argv){
           // project the propagator with the sink eigenvectors
           // * proj_prop["ipt"] = prop.tensor["CpZYXt"] * Vdagger["CZYXit"]; // too slow ( 5 sec )
           // Vdagger P order seems to be faster by about a factor of 4
-          proj_prop["ipt"] =  Vdagger["CZYXit"] * prop.tensor["CpZYXt"];
+          proj_prop["ipt"] =  Vdagger["CZYXit"] * prop.tensor["CpZYXt"]; // 1 second
           elapsed = sw.elapsed_print("Propagator to perambulator sink projection");
           flops = flop_counter.count();
           msg << "Vdagger_project(time,flops,Gflop/s): " << elapsed.mean << " "  << 
@@ -184,8 +193,10 @@ int main(int argc, char ** argv){
           
           // this is reasonable, but still too slow for comfort... 
           // ( 4.8 sec with src_dof dense, 11 sec with src_dof sparse... )
-          // executing a manual "write" is probably faster..
           //peram["ijpqts"] += proj_prop["ipt"] * src_dof["jqs"];
+          
+          // this executes a manual write into the right slice of peram
+          // and is much faster
           nyom::add_to_Perambulator( peram, proj_prop, tsrc, esrc, dsrc, core ); // 0.68 seconds...
           elapsed = sw.elapsed_print("Perambulator source index outer product");
           flops = flop_counter.count();
