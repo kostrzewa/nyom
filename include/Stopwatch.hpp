@@ -51,6 +51,7 @@ class Stopwatch {
     }
 
     void reset(void){
+      MPI_Barrier(comm);
       time = std::chrono::steady_clock::now();
     }
    
