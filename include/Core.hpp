@@ -83,14 +83,17 @@ class Core {
           std::cout << input_node << std::endl << std::endl;
         }
       }
-      
-      if( !fs::exists("logs") ){
-        fs::create_directory("logs");
-      } else {
-        if( !fs::is_directory("logs") ){
-          throw( std::runtime_error("File 'logs' exists, but is not a directory!\n") );
+     
+      if( geom.get_myrank() == 0 ){ 
+        if( !fs::exists("logs") ){
+          fs::create_directory("logs");
+        } else {
+          if( !fs::is_directory("logs") ){
+            throw( std::runtime_error("File 'logs' exists, but is not a directory!\n") );
+          }
         }
       }
+      MPI_Barrier(MPI_COMM_WORLD);
     }
       
 
