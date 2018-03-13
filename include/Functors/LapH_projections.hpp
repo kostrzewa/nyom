@@ -24,11 +24,137 @@
 #include "LapH_eigsys.hpp"
 #include "Propagator.hpp"
 #include "One.hpp"
+#include "AutoTunable.hpp"
 
 #include <sstream>
 #include <string>
 
 namespace nyom {
+
+class Vdagger_project_SpinDilutedTimeslicePropagatorVector : public nyom::AutoTunable {
+public:
+  Vdagger_project_SpinDilutedTimeslicePropagatorVector(
+      const std::string name_in,
+      const std::string identifier_in,
+      nyom::SpinDilutedTimeslicePropagatorVector & prop_in,
+      nyom::LapH_eigsys & Vdagger_in,
+      CTF::Tensor<complex<double>> & proj_prop_in,
+      const nyom::Core & core_in) :
+
+    AutoTunable(name_in, identifier_in, core_in),
+      name(name_in),
+      identifier(identifier_in),
+      core(core_in),
+      Vdagger(Vdagger_in),
+      prop(prop_in),
+      proj_prop(proj_prop_in)
+  {
+    variants.emplace("P_Vdagger", std::mem_fun(&Vdagger_project_SpinDilutedTimeslicePropagatorVector::P_Vdagger));
+    variants.emplace("Vdagger_P", std::mem_fun(&Vdagger_project_SpinDilutedTimeslicePropagatorVector::Vdagger_P));
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+
+  Vdagger_project_SpinDilutedTimeslicePropagatorVector() = delete;
+
+  void P_Vdagger()
+  {
+    proj_prop["ipt"] = prop.tensor["CpZYXt"] * Vdagger["CZYXit"];
+  }
+
+  void Vdagger_P()
+  {
+    proj_prop["ipt"] = Vdagger["CZYXit"] * prop.tensor["CpZYXt"] ;
+  }
+
+  void operator()(void)
+  {
+    // the second condition for tuning takes care of the situation
+    // in which a new variant was added but tuning results already exist
+    // so the new variant would be completely ignored
+    if( this->get_optimal_variant().size() == 0 || variants.size() != this->get_foms_size() ){
+      tune();
+      if( core.geom.get_myrank() == 0 ){
+        std::cout << this->get_optimal_variant() << " has won: " << 
+          this->get_fom( this->get_optimal_variant() ) << std::endl;
+      }
+    } else {
+      // for some reason, it is not possible to call variants["name"](this) directly...
+      // doing so through the iterator works, however
+      std::unordered_map< std::string, std::mem_fun_t<void,nyom::Vdagger_project_SpinDilutedTimeslicePropagatorVector> >::iterator 
+        it = variants.find( this->get_optimal_variant() );
+      it->second(this);
+    }
+  }
+  
+  void tune(void) 
+  {
+    if( core.geom.get_myrank() == 0 ){
+		  std::cout << "Tuning " << name << std::endl;
+      fflush(stdout);
+    }
+    std::unordered_map< std::string, std::mem_fun_t<void,nyom::Vdagger_project_SpinDilutedTimeslicePropagatorVector> >::iterator it = variants.begin();
+    nyom::duration elapsed;
+    while( it != variants.end() ){
+      sw.reset();
+      if( core.geom.get_myrank() == 0 ){
+        std::cout << "Calling variant " << it->first << std::endl;
+        fflush(stdout);
+      }
+      it->second(this);
+      elapsed = sw.elapsed();
+      add_measurement( /* variant */ it->first,
+                       /* fom */ elapsed.mean );
+      ++it;
+    }
+  }
+
+private:
+  nyom::Stopwatch sw;
+
+  std::unordered_map<std::string, std::mem_fun_t<void,nyom::Vdagger_project_SpinDilutedTimeslicePropagatorVector> > variants;
+
+  const std::string name;
+  const std::string identifier;
+
+  const nyom::Core & core;
+  nyom::LapH_eigsys & Vdagger;
+  nyom::SpinDilutedTimeslicePropagatorVector & prop;
+  CTF::Tensor<complex<double>> & proj_prop;
+  
+};
+
+Vdagger_project_SpinDilutedTimeslicePropagatorVector
+make_Vdagger_project_SpinDilutedTimeslicePropagatorVector(
+  nyom::SpinDilutedTimeslicePropagatorVector & prop,
+  nyom::LapH_eigsys & Vdagger,
+  CTF::Tensor<complex<double>> & proj_prop,
+  const nyom::Core & core)
+{
+  int     Nt = core.input_node["Nt"].as<int>();
+  int     Nx = core.input_node["Nx"].as<int>();  
+  int     Ny = core.input_node["Ny"].as<int>(); 
+  int     Nz = core.input_node["Nz"].as<int>(); 
+  int    Nev = core.input_node["Nev"].as<int>(); 
+  int Nranks = core.geom.get_Nranks();
+
+  std::string name("Vdagger_project_SpinDilutedTimeslicePropagatorVector");
+  std::stringstream identifier;
+
+  identifier << "Nt" << Nt << "_"
+             << "Nx" << Nx << "_"
+             << "Ny" << Ny << "_"
+             << "Nz" << Nz << "_"
+             << "Nev" << Nev << "_"
+             << "Nranks" << Nranks;
+
+  return( Vdagger_project_SpinDilutedTimeslicePropagatorVector(name,
+                                                               identifier.str(),
+                                                               prop,
+                                                               Vdagger,
+                                                               proj_prop,
+                                                               core) );
+}
+
 
 class V_project_SpinDilutedTimesliceSourceVector : public nyom::AutoTunable {                                                                     
 public:

@@ -125,7 +125,7 @@ int main(int argc, char ** argv){
                                                                 tsrc,
                                                                 esrc,
                                                                 core);
-        sw.elapsed_print("Functor overhead");
+        sw.elapsed_print("Functor overhead V_project_SpinDilutedTimesliceSourceVector");
         
         sw.reset();
         src_project();
@@ -172,10 +172,17 @@ int main(int argc, char ** argv){
           flop_counter.zero();
           sw.reset();
           
+          sw.reset();
+          nyom::Vdagger_project_SpinDilutedTimeslicePropagatorVector prop_project =
+            nyom::make_Vdagger_project_SpinDilutedTimeslicePropagatorVector(prop,
+                                                                  Vdagger,
+                                                                  proj_prop,
+                                                                  core);
+          sw.elapsed_print("Functor overhead Vdagger_project_SpinDilutedTimeslicePropagatorVector");
+        
           // project the propagator with the sink eigenvectors
-          // * proj_prop["ipt"] = prop.tensor["CpZYXt"] * Vdagger["CZYXit"]; // too slow ( 5 sec )
-          // Vdagger P order seems to be faster by about a factor of 4
-          proj_prop["ipt"] =  Vdagger["CZYXit"] * prop.tensor["CpZYXt"]; // 1 second
+          sw.reset();
+          prop_project();
           elapsed = sw.elapsed_print("Propagator to perambulator sink projection");
           flops = flop_counter.count();
           msg << "Vdagger_project(time,flops,Gflop/s): " << elapsed.mean << " "  << 
