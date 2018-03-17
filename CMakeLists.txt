@@ -55,7 +55,31 @@ set( LEMON_HOME CACHE PATH "path to the LEMON library installation (optional, de
 if( LEMON_HOME )
   link_directories(${LEMON_HOME}/lib)
   include_directories(${LEMON_HOME}/include)
-  link_libraries(-llime)
+  link_libraries(-llemon)
+endif()
+
+set( QMP_HOME CACHE PATH "path to the QMP library required by QPhiX (optional, depends on how tmLQCD was configured)" )
+if( QMP_HOME )
+  link_directories(${QMP_HOME}/lib)
+  include_directories(${QMP_HOME}/include)
+  link_libraries(-lqmp)
+endif()
+
+set( QPHIX_HOME CACHE PATH "path to the QPhiX library installation (optional, depends on how tmLQCD was configured)" )
+if( QPHIX_HOME )
+  ## this is a really ugly hack to make sure that all symbols are found, bit it works!
+  set( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${TMLQCD_BUILD}/qphix_interface.o" )
+  
+  link_directories(${QPHIX_HOME}/lib)
+  include_directories(${QPHIX_HOME}/include)
+  link_libraries(-lqphix_codegen -lqphix_solver)
+endif()
+
+set( DD_ALPHA_AMG_HOME CACHE PATH "path to the DDalphaAMG library installation (optional, depends on how tmLQCD was configured)" )
+if( DD_ALPHA_AMG_HOME )
+  link_directories(${DD_ALPHA_AMG_HOME}/lib)
+  include_directories(${DD_ALPHA_AMG_HOME}/include)
+  link_libraries(-lDDalphaAMG)
 endif()
 
 set( QUDA_HOME CACHE PATH "path to QUDA installation (optional, depends on whether tmLQCD uses QUDA sovers)" ) 
@@ -123,9 +147,12 @@ else()
   message( FATAL_ERROR "Unable to find Boost (or one of the requested components, see CMakeLists.txt!")
 endif()
 
+
 # base package includes and libraries
 include_directories(include)
 
 add_subdirectory(peram_gen)
 add_subdirectory(tests)
 add_subdirectory(manual_tests)
+
+
