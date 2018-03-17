@@ -83,7 +83,9 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
   const int Ny_local = core.geom.tmlqcd_lat.LY;
   const int Nz_local = core.geom.tmlqcd_lat.LZ;
 
+  nyom::duration elapsed;
   nyom::Stopwatch sw;
+  nyom::Stopwatch fs_sw;
 
   /* the reasonable thing to do here would be MPI I/O, but it would take
    * a while to implement. Since this is a test code, we will read the entire
@@ -135,19 +137,17 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
   } 
 
   for( int t = 0; t < Nt_local; ++t ){
+    int gt = Nt_local*core.geom.tmlqcd_mpi.proc_coords[0] + t;
+    fs_sw.reset();
     if( ts_rank == 0 ){
-      int gt = Nt_local*core.geom.tmlqcd_mpi.proc_coords[0] + t;
       std::stringstream filename;
       filename << path << "/eigenvectors."
         << std::setfill('0') << std::setw(4) << gauge_conf_id << '.'
         << std::setfill('0') << std::setw(3) << gt;
 
-      // stopwatch for the time slice communicator
-      nyom::Stopwatch fs_sw(ts_comm);
 
       std::ifstream ev_file(filename.str(), 
                             std::ios::in | std::ios::binary );
-      fs_sw.reset();
       ev_file.read(reinterpret_cast<char*>(buffer.data()), 
                    buffer.size()*sizeof( complex<double> ) );
       if( !ev_file ){
@@ -156,18 +156,23 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
         std::abort();
       }
       ev_file.close();
-      nyom::duration elapsed = fs_sw.elapsed();
-      std::stringstream msg;
-      msg << "ev_file_read time: " << elapsed.mean <<
-        " bandwidth(GiB/s): " << 
-        (double)buffer.size()*sizeof( complex<double> ) / elapsed.mean / 1024 / 1024 / 1024 <<
-        std::endl;
-      core.Logger("ev_file_read",
-                  /* type */ log_perf,
-                  msg.str(),
-                  log_all);
-      msg.str("");
-      
+    }
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    elapsed = fs_sw.elapsed();
+    std::stringstream msg;
+    msg << "ev_file_read time: " << elapsed.mean <<
+      " bandwidth(GiB/s): " << 
+      (double)buffer.size()*sizeof( complex<double> ) / elapsed.mean / 1024 / 1024 / 1024 <<
+      std::endl;
+    core.Logger("ev_file_read",
+                /* type */ log_perf,
+                msg.str(),
+                log_master);
+    msg.str("");
+   
+    fs_sw.reset(); 
+    if( ts_rank == 0 ){  
       int64_t counter = 0;
       for( int ev = 0; ev < Nev; ++ev ){
         for( int gx = 0; gx < Nx; ++gx ){
@@ -186,22 +191,21 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
             } // gy
           } // gx
         } // ev
-      fs_sw.reset();
       V.write(counter, indices.data(), buffer.data());
-      elapsed = fs_sw.elapsed();
-      msg << "V.write time(mean,min,max): " << 
-        elapsed.mean << " " << elapsed.min << " " << elapsed.max <<
-        std::endl;
-      core.Logger("V.write",
-                  /* type */ log_perf,
-                  msg.str(),
-                  log_all);
-
     } else {
       // all processes need to execute "write", but only those with data
       // actually perform one
       V.write(0, NULL, NULL);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
+    elapsed = fs_sw.elapsed();
+    msg << "V.write time(mean,min,max): " << 
+      elapsed.mean << " " << elapsed.min << " " << elapsed.max <<
+      std::endl;
+    core.Logger("V.write",
+                /* type */ log_perf,
+                msg.str(),
+                log_master);
   } // t
   MPI_Barrier(MPI_COMM_WORLD);
   sw.elapsed_print_and_reset("V read from file");
