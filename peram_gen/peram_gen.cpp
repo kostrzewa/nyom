@@ -121,7 +121,6 @@ int main(int argc, char ** argv){
         nyom::V_project_SpinDilutedTimesliceSourceVector src_project =
           nyom::make_V_project_SpinDilutedTimesliceSourceVector(src,
                                                                 V,
-                                                                src_proj,
                                                                 tsrc,
                                                                 esrc,
                                                                 core);

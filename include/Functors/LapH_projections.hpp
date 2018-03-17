@@ -163,7 +163,6 @@ public:
       const std::string identifier_in,
       nyom::SpinDilutedTimesliceSourceVector & src_in,
       nyom::LapH_eigsys & V_in,
-      CTF::Tensor<complex<double>> & src_proj_in,
       const int tsrc_in,
       const int esrc_in, 
       const nyom::Core & core_in) :
@@ -174,15 +173,30 @@ public:
       core(core_in),
       V(V_in),
       src(src_in),
-      src_proj(src_proj_in),
       tsrc(tsrc_in),
       esrc(esrc_in),
       Nt( core_in.input_node["Nt"].as<int>() ),
       Nev( core_in.input_node["Nev"].as<int>() )
 
   {
+    variants.emplace("proj_sparse_V", std::mem_fun(&V_project_SpinDilutedTimesliceSourceVector::proj_sparse_V));
+    variants.emplace("V_proj_sparse", std::mem_fun(&V_project_SpinDilutedTimesliceSourceVector::V_proj_sparse));
     variants.emplace("proj_V", std::mem_fun(&V_project_SpinDilutedTimesliceSourceVector::proj_V));
     variants.emplace("V_proj", std::mem_fun(&V_project_SpinDilutedTimesliceSourceVector::V_proj));
+    variants.emplace("oneE_V_oneT", std::mem_fun(&V_project_SpinDilutedTimesliceSourceVector::oneE_V_oneT));
+    variants.emplace("oneE_oneT_V", std::mem_fun(&V_project_SpinDilutedTimesliceSourceVector::oneE_oneT_V));
+    variants.emplace("V_oneE_oneT", std::mem_fun(&V_project_SpinDilutedTimesliceSourceVector::V_oneE_oneT));
+
+    one_tsrc = nyom::make_One(Nt, tsrc, core.geom.get_world() );
+    one_esrc = nyom::make_One(Nev, esrc, core.geom.get_world() );
+    int src_shapes[2] = {NS, NS};
+    int src_sizes[2] = {Nev, Nt};
+    src_proj = CTF::Tensor<complex<double>>(2, src_sizes, src_shapes, core.geom.get_world(), "src_proj");
+    src_proj_sparse = CTF::Tensor<complex<double>>(2, src_sizes, src_shapes, core.geom.get_world(), "src_proj");
+    src_proj["et"] = one_esrc["e"] * one_tsrc["t"];
+    src_proj_sparse["et"] = src_proj["et"];
+    src_proj_sparse.sparsify();
+
     MPI_Barrier(MPI_COMM_WORLD);
   }
 
@@ -196,6 +210,31 @@ public:
   void V_proj()
   {
     src.tensor["czyx"] = V["czyxET"] * src_proj["ET"];
+  }
+  
+  void proj_sparse_V()
+  {
+    src.tensor["czyx"] = src_proj_sparse["ET"] * V["czyxET"];
+  }
+
+  void V_proj_sparse()
+  {
+    src.tensor["czyx"] = V["czyxET"] * src_proj_sparse["ET"];
+  }
+
+  void oneE_oneT_V() 
+  {
+    src.tensor["czyx"] = one_esrc["E"] * one_tsrc["T"] * V["czyxET"];
+  }
+  
+  void oneE_V_oneT() 
+  {
+    src.tensor["czyx"] = one_esrc["E"] * V["czyxET"] * one_tsrc["T"];
+  }
+  
+  void V_oneE_oneT() 
+  {
+    src.tensor["czyx"] = V["czyxET"] * one_esrc["E"] * one_tsrc["T"];
   }
 
   void operator()(void)
@@ -251,8 +290,12 @@ private:
   const nyom::Core & core;
   nyom::LapH_eigsys & V;
   nyom::SpinDilutedTimesliceSourceVector & src;
-  CTF::Tensor<complex<double>> & src_proj;
+  CTF::Tensor<complex<double>> src_proj;
+  CTF::Tensor<complex<double>> src_proj_sparse;
   
+  nyom::One one_tsrc;
+  nyom::One one_esrc;
+
   const int tsrc;
   const int esrc;
   const int Nt;
@@ -263,7 +306,6 @@ V_project_SpinDilutedTimesliceSourceVector
 make_V_project_SpinDilutedTimesliceSourceVector(
   nyom::SpinDilutedTimesliceSourceVector & src,
   nyom::LapH_eigsys & V,
-  CTF::Tensor<complex<double>> & src_proj,
   const int tsrc_in,
   const int esrc_in,
   const nyom::Core & core)
@@ -289,7 +331,6 @@ make_V_project_SpinDilutedTimesliceSourceVector(
                                                      identifier.str(),
                                                      src,
                                                      V,
-                                                     src_proj,
                                                      tsrc_in,
                                                      esrc_in,
                                                      core) );
