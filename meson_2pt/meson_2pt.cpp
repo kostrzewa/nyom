@@ -23,6 +23,8 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
+#include <random>
+#include <iomanip>
 
 #include <ctf.hpp>
 
@@ -128,20 +130,20 @@ int main(int argc, char ** argv) {
   timeDiff(moment,"gamma initialisation", rank);
   
   // print out all gamma matrices for cross-check
-  for( std::string g1 : { "I", "0", "1", "2", "3", "5", "Ip5", "Im5" } ){ 
-    if(rank==0) cout << "gamma" << g1 << endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-    g[g1].print();
-  }
-  
-  for( std::string g1 : { "0", "1", "2", "3", "5" } ){ 
-    for( std::string g2 : { "0", "1", "2", "3" } ){
-      if( g1 == g2 ) continue;
-      if(rank==0) cout << "gamma" << g1+g2 << endl;
-      MPI_Barrier(MPI_COMM_WORLD);
-      g[g1+g2].print();
-    }
-  }
+  //for( std::string g1 : { "I", "0", "1", "2", "3", "5", "Ip5", "Im5" } ){ 
+  //  if(rank==0) cout << "gamma" << g1 << endl;
+  //  MPI_Barrier(MPI_COMM_WORLD);
+  //  g[g1].print();
+  //}
+  //
+  //for( std::string g1 : { "0", "1", "2", "3", "5" } ){ 
+  //  for( std::string g2 : { "0", "1", "2", "3" } ){
+  //    if( g1 == g2 ) continue;
+  //    if(rank==0) cout << "gamma" << g1+g2 << endl;
+  //    MPI_Barrier(MPI_COMM_WORLD);
+  //    g[g1+g2].print();
+  //  }
+  //}
 
   // prevent integer overflows further down the line
   size_t Ds = 4;
@@ -161,9 +163,7 @@ int main(int argc, char ** argv) {
   Tensor< std::complex<double> > Ssrc(8, prop_sizes, prop_shapes, dw);
   Tensor< std::complex<double> > Ssnk(8, prop_sizes, prop_shapes, dw);
 
-  std::complex<double>* pairs;
-  int64_t *indices;
-  int64_t  npair;
+  const int nsources = 5;
 
   timeReset(start);
 
@@ -172,136 +172,175 @@ int main(int argc, char ** argv) {
 
   // read propagators from file(s)? if yes, don't need to load gauge field
   bool read = false;
-  bool write = true;
+  bool write = false;
   if(read) {
     write = false; 
   } else {
     tmLQCD_read_gauge(lat.nstore); 
   }
   
-  indices = (int64_t*) calloc(4*3*VOLUME, sizeof(int64_t));
-  pairs = (std::complex<double>*) calloc(4*3*VOLUME, sizeof(std::complex<double>));
-  for(size_t src_s = 0; src_s < Ds; ++src_s){
-    for(size_t src_c = 0; src_c < Cs; ++src_c){
-      timeReset(moment);
-      if(read == false){ 
-        source_spinor_field(g_spinor_field[0],g_spinor_field[1], src_s, src_c);
-        convert_eo_to_lexic(temp_field[1],g_spinor_field[0],g_spinor_field[1]);
-        tmLQCD_invert((double*)temp_field[0],(double*)temp_field[1],0,0);
-        timeDiffAndUpdate(moment,"inversion",rank);
+  std::random_device r;
+  std::mt19937 mt_gen(12345);
 
-        if(write){
-          convert_lexic_to_eo(g_spinor_field[0], g_spinor_field[1], temp_field[0]);
-          WRITER *writer = NULL;
-          char fname[200];
-          snprintf(fname,200,"source.%04d.00.00.inverted",lat.nstore);
-          construct_writer(&writer, fname, 1);
-          write_spinor(writer, &g_spinor_field[0], &g_spinor_field[1], 1, 64);
-          destruct_writer(writer);
-        }
-        timeDiffAndUpdate(moment,"propagator io",rank);
-      
-      }else{
-        char fname[200]; snprintf(fname,200,"source.%04d.00.00.inverted",lat.nstore);
-        read_spinor(g_spinor_field[0],g_spinor_field[1],fname, (int)(src_s*Cs+src_c) );
-        convert_eo_to_lexic(temp_field[0],g_spinor_field[0],g_spinor_field[1]);
-        timeDiffAndUpdate(moment,"propagator io",rank);
+  // uniform distribution in space coordinates
+  std::uniform_int_distribution<int> ran_space_idx(0, Ls-1);
+  // uniform distribution in time coordinates
+  std::uniform_int_distribution<int> ran_time_idx(0, Ts-1);
+
+  int64_t* prop_tensor_indices = (int64_t*) calloc(4*3*VOLUME, sizeof(int64_t));
+  std::complex<double>* prop_tensor_pairs = (std::complex<double>*) calloc(4*3*VOLUME, sizeof(std::complex<double>));
+  for(int src_id = 0; src_id < nsources; src_id++){
+    int src_coords[4];
+    
+    // for certainty, we broadcast the source coordinates from rank 0 
+    if(rank==0){
+      src_coords[0] = ran_time_idx(mt_gen);
+      for(int i = 1; i < 4; ++i){
+        src_coords[i] = ran_space_idx(mt_gen);
       }
-      // globally translate from tmLQCD to Cyclops
-      timeReset(moment);
-      int64_t counter = 0;
-      for(size_t t = 0; t < T; ++t){
-        size_t gt = T*mpi.proc_coords[0] + t;
+    }
+    MPI_Bcast(src_coords,
+              4,
+              MPI_INT,
+              0,
+              MPI_COMM_WORLD);
 
-        for(size_t x = 0; x < LX; ++x){
-          size_t gx = LX*mpi.proc_coords[1] + x;
+    for(size_t src_s = 0; src_s < Ds; ++src_s){
+      for(size_t src_c = 0; src_c < Cs; ++src_c){
+        timeReset(moment);
+        if(read == false){
+          full_source_spinor_field_point(temp_field[1], src_s, src_c, src_coords); 
+          //source_spinor_field(g_spinor_field[0],g_spinor_field[1], src_s, src_c);
+          //convert_eo_to_lexic(temp_field[1],g_spinor_field[0],g_spinor_field[1]);
+          tmLQCD_invert((double*)temp_field[0],(double*)temp_field[1],0,0);
+          timeDiffAndUpdate(moment,"inversion",rank);
 
-          for(size_t y = 0; y < LY; ++y){
-            size_t gy = LY*mpi.proc_coords[2] + y;
+          if(write){
+            convert_lexic_to_eo(g_spinor_field[0], g_spinor_field[1], temp_field[0]);
+            WRITER *writer = NULL;
+            char fname[200];
+            snprintf(fname,200,"source.%04d.00.00.inverted",lat.nstore);
+            construct_writer(&writer, fname, 1);
+            write_spinor(writer, &g_spinor_field[0], &g_spinor_field[1], 1, 64);
+            destruct_writer(writer);
+          }
+          timeDiffAndUpdate(moment,"propagator io",rank);
+        
+        }else{
+          char fname[200]; snprintf(fname,200,"source.%04d.00.00.inverted",lat.nstore);
+          read_spinor(g_spinor_field[0],g_spinor_field[1],fname, (int)(src_s*Cs+src_c) );
+          convert_eo_to_lexic(temp_field[0],g_spinor_field[0],g_spinor_field[1]);
+          timeDiffAndUpdate(moment,"propagator io",rank);
+        }
+        // globally translate from tmLQCD to Cyclops
+        timeReset(moment);
+        int64_t counter = 0;
+        for(size_t t = 0; t < T; ++t){
+          size_t gt = T*mpi.proc_coords[0] + t;
 
-            for(size_t z = 0; z < LZ; ++z){
-              size_t gz = LZ*mpi.proc_coords[3] + z;
-              size_t x_3d = Ls*Ls*gx + Ls*gy + gz;
+          for(size_t x = 0; x < LX; ++x){
+            size_t gx = LX*mpi.proc_coords[1] + x;
 
-              for(size_t prop_s = 0; prop_s < Ds; ++prop_s){
-                for(size_t prop_c = 0; prop_c < Cs; ++prop_c){
-                  // global Cyclops index for S, leftmost tensor index runs fastest
-                  indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
-                                     prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
-                                     src_s  * (Ts*Ls*Ls*Ls*Ds)       +
-                                     prop_s * (Ts*Ls*Ls*Ls)          +
-                                     gz     * (Ts*Ls*Ls)             +
-                                     gy     * (Ts*Ls)                +
-                                     gx     * (Ts)                   +
-                                     gt;
-                  //indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
-                  //                   prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
-                  //                   src_s  * (Ts*Ls*Ls*Ls*Ds)       +
-                  //                   prop_s * (Ts*Ls*Ls*Ls)          +
-                  //                   x_3d   * (Ts)                   + // x_3d runs from 0 to Ls^3
-                  //                   gt;
+            for(size_t y = 0; y < LY; ++y){
+              size_t gy = LY*mpi.proc_coords[2] + y;
 
-                  // need to write a clean wrapper for this which
-                  // deals with the struct directly instead of doing two different pointer arithmetics in one line...
-                  pairs[counter] = *( ((_Complex double*)(temp_field[0] + g_ipt[t][x][y][z])) + prop_s*Cs + prop_c );
-                  counter++;
+              for(size_t z = 0; z < LZ; ++z){
+                size_t gz = LZ*mpi.proc_coords[3] + z;
+                size_t x_3d = Ls*Ls*gx + Ls*gy + gz;
+
+                for(size_t prop_s = 0; prop_s < Ds; ++prop_s){
+                  for(size_t prop_c = 0; prop_c < Cs; ++prop_c){
+                    // global Cyclops index for S, leftmost tensor index runs fastest
+                    prop_tensor_indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
+                                                   prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
+                                                   src_s  * (Ts*Ls*Ls*Ls*Ds)       +
+                                                   prop_s * (Ts*Ls*Ls*Ls)          +
+                                                   gz     * (Ts*Ls*Ls)             +
+                                                   gy     * (Ts*Ls)                +
+                                                   gx     * (Ts)                   +
+                                                   gt;
+                    //indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
+                    //                   prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
+                    //                   src_s  * (Ts*Ls*Ls*Ls*Ds)       +
+                    //                   prop_s * (Ts*Ls*Ls*Ls)          +
+                    //                   x_3d   * (Ts)                   + // x_3d runs from 0 to Ls^3
+                    //                   gt;
+
+                    // need to write a clean wrapper for this which
+                    // deals with the struct directly instead of doing two different pointer arithmetics in one line...
+                    prop_tensor_pairs[counter] = *( ((_Complex double*)(temp_field[0] + g_ipt[t][x][y][z])) + prop_s*Cs + prop_c );
+                    counter++;
+                  }
                 }
               }
             }
           }
         }
+        // global write with automatic MPI communication
+        S.write(4*3*VOLUME,prop_tensor_indices,prop_tensor_pairs);
+        timeDiffAndUpdate(moment,"copying propagator to tensor",rank);
       }
-      // global write with automatic MPI communication
-      S.write(4*3*VOLUME,indices,pairs);
-      timeDiffAndUpdate(moment,"copying propagator to tensor",rank);
     }
-  }
-  free(indices); free(pairs);
-  finalize_solver(temp_field,2);
  
-  // transpose colour indices and take complex conjugate for gamma5  hermiticity
-  // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
-  // below
-  Sconj["txyzijba"] = S["txyzijab"];
-  ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
+    // transpose colour indices and take complex conjugate for gamma5  hermiticity
+    // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
+    // below
+    Sconj["txyzijba"] = S["txyzijab"];
+    ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
 
-  // perform contractions
-  Flop_counter flp;
-  Vector< std::complex<double> > C(Ts,dw);
-  double norm = 1.0/((double)Ls*Ls*Ls);
-  // many of these are non-sensical or zero, but for now, let's loop over all of them
-  for( std::string g_src : i_g ){
-    for( std::string g_snk : i_g ){
-        timeReset(moment);
-        flp.zero();
+    // perform contractions
+    Flop_counter flp;
+    Vector< std::complex<double> > C(Ts,dw);
+    double norm = 1.0/((double)Ls*Ls*Ls);
 
-      Ssrc["txyzijab"] = S["txyziLab"] * (g[g_src])["LK"] * (g["5"])["Kj"];
-        timeDiffAndUpdate(moment,"source gamma insertion",rank);
+    std::complex<double>* correl_pairs;
+    int64_t correl_npair;
+    // many of these are non-sensical or zero, but for now, let's loop over all of them
+    for( std::string g_src : {"5", "05"} ){
+      for( std::string g_snk : {"5", "05"} ){
+          timeReset(moment);
+          flp.zero();
 
-      Ssnk["txyzijab"] = Sconj["txyzLiab"] * (g["5"])["LK"]  * (g[g_snk])["Kj"];
-        timeDiffAndUpdate(moment,"sink gamma insertion",rank);
+        Ssrc["txyzijab"] = S["txyziLab"] * (g[g_src])["LK"] * (g["5"])["Kj"];
+          timeDiffAndUpdate(moment,"source gamma insertion",rank);
 
-      C["t"] = Ssnk["tXYZIJAB"] * Ssrc["tXYZJIBA"];
-        measureFlopsPerSecond( timeDiffAndUpdate(moment,"2-pt contraction",rank), flp, "meson 2-pt function", rank, np );
+        Ssnk["txyzijab"] = Sconj["txyzLiab"] * (g["5"])["LK"]  * (g[g_snk])["Kj"];
+          timeDiffAndUpdate(moment,"sink gamma insertion",rank);
 
-      C.read_all(&npair,&pairs);
-      if(rank==0){
-        ofstream correl;
-        char fname[200]; snprintf(fname,200,"pion_2pt_%05d_snkG%s_srcG%s.txt", lat.nstore, g_snk.c_str(), g_src.c_str());
-        correl.open(fname);
-        for(int64_t i = 0; i < npair; ++i){
-          correl << i << "\t" << norm*pairs[i].real() << "\t" << norm*pairs[i].imag() << endl;
+        C["t"] = Ssnk["tXYZIJAB"] * Ssrc["tXYZJIBA"];
+          measureFlopsPerSecond( timeDiffAndUpdate(moment,"2-pt contraction",rank), flp, "meson 2-pt function", rank, np );
+
+        C.read_all(&correl_npair,&correl_pairs);
+        if(rank==0){
+          ofstream correl;
+          char fname[200]; 
+          snprintf(fname, 200,
+                   "pion_2pt_conf%05d_srcidx%03d_srct%03d_srcx%03d_srcy%03d_srcz%03d_snkG%s_srcG%s.txt",
+                   lat.nstore, src_id,
+                   src_coords[0], src_coords[1], src_coords[2], src_coords[3],
+                   g_snk.c_str(), g_src.c_str());
+          correl.open(fname);
+          for(int64_t i = 0; i < correl_npair; ++i){
+            correl << i << "\t" << 
+              std::setprecision(16) << norm*correl_pairs[i].real() << "\t" << 
+              std::setprecision(16) << norm*correl_pairs[i].imag() << 
+              endl;
+          }
+          correl.close();
         }
-        correl.close();
+        free(correl_pairs);
+        timeDiffAndUpdate(moment,"Correlator IO",rank);
       }
-      free(pairs);
-      timeDiffAndUpdate(moment,"Correlator IO",rank);
     }
-  } 
+  } // loop over sources
+  free(prop_tensor_indices); free(prop_tensor_pairs);
+  finalize_solver(temp_field,2);
+  MPI_Barrier(MPI_COMM_WORLD);
   elapsed_seconds = std::chrono::steady_clock::now()-start;
   if(rank==0)
     cout << "All meson 2-pt functions took " << elapsed_seconds.count() << " seconds" << std::endl;
-  
-  //MPI_Finalize(); // probably need to destroy CTF::World before calling this because it throws lots of errors
+
+  tmLQCD_finalise();  
+  MPI_Finalize(); // probably need to destroy CTF::World before calling this because it throws lots of errors
   return 0;
 }
