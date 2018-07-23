@@ -22,7 +22,7 @@
 #include "Core.hpp"
 #include "Stopwatch.hpp"
 #include "LapH_eigsys.hpp"
-#include "Propagator.hpp"
+#include "SpinDilutedTimeslicePropagatorVector.hpp"
 #include "One.hpp"
 #include "AutoTunable.hpp"
 

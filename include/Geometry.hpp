@@ -32,8 +32,7 @@ namespace nyom {
 
 /**
  * @brief The geometry class serves as a link between the CTF world
- * and the parallelisation considerations for LapH eigensystems
- * and perambulators for the purpose of efficient parallel I/O.
+ * and the parallelisation we inherit from tmLQCD.
  */
 class Geometry {
   public:
@@ -68,6 +67,23 @@ class Geometry {
     delete world;
     tmLQCD_finalise();
     MPI_Finalize();
+  }
+
+  // print tmLQCD process information in order
+  void print_tmLQCD_geometry(){
+    for(int r = 0; r < tmlqcd_mpi.nproc; ++r){
+      MPI_Barrier(MPI_COMM_WORLD);
+      if(r == myrank){ 
+        printf("tmLQCD mpi params  cart_id: %5d proc_id: %5d time_rank: %3d\n", 
+                  tmlqcd_mpi.cart_id, tmlqcd_mpi.proc_id, tmlqcd_mpi.time_rank);
+        printf("tmLQCD mpi params  proc[t]: %3d proc[x]: %3d proc[y]: %3d proc_z: %3d\n", 
+               tmlqcd_mpi.proc_coords[0],
+               tmlqcd_mpi.proc_coords[1],
+               tmlqcd_mpi.proc_coords[2],
+               tmlqcd_mpi.proc_coords[3]);
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
   }
 
   CTF::World& get_world() const {

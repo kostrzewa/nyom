@@ -101,6 +101,16 @@ class Stopwatch {
       reset();
       return(duration);
     }
+
+    void measureFlopsPerSecond(CTF::Flop_counter& flp,
+                               const char* const name,
+                               const int np ){
+      int64_t flops = flp.count( MPI_COMM_WORLD );
+      double fps = (double)(flops)/(elapsed().mean*1e6/np);
+      if(rank==0){
+        printf("'Performance in '%s': %.6e mflop/s\n", name, fps);
+      }
+    }
   
   private:
     std::chrono::time_point<std::chrono::steady_clock> time;
@@ -108,6 +118,8 @@ class Stopwatch {
     int Nranks;
     MPI_Comm comm;
 };
+
+
 
 } //namespace(nyom)
 

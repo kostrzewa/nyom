@@ -19,7 +19,7 @@
 
 #include "Core.hpp"
 #include "Perambulator.hpp"
-#include "Propagator.hpp"
+#include "SpinDilutedTimeslicePropagatorVector.hpp"
 #include "LapH_eigsys.hpp"
 #include "One.hpp"
 #include "Stopwatch.hpp"
@@ -156,12 +156,12 @@ int main(int argc, char ** argv){
                    core);
 
           sw.reset();
-          //invert_quda_direct(reinterpret_cast<double*>(&propagator[0]),
-          //                   reinterpret_cast<double*>(&source[0]),
-          //                   0, 1);
-          tmLQCD_invert(reinterpret_cast<double*>(&propagator[0]),
-                        reinterpret_cast<double*>(&source[0]),
-                        0, 0);
+          invert_quda_direct(reinterpret_cast<double*>(&propagator[0]),
+                             reinterpret_cast<double*>(&source[0]),
+                             0);
+          //tmLQCD_invert(reinterpret_cast<double*>(&propagator[0]),
+          //              reinterpret_cast<double*>(&source[0]),
+          //              0, 0);
           sw.elapsed_print("Inversion");   
 
           // propagator to tensor (has full complement of indices)
