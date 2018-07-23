@@ -153,6 +153,7 @@ include_directories(include)
 
 add_subdirectory(peram_gen)
 add_subdirectory(meson_2pt)
+add_subdirectory(baryon_2pt)
 add_subdirectory(tests)
 add_subdirectory(manual_tests)
 
