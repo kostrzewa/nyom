@@ -32,15 +32,17 @@
 
 namespace nyom {
 
+// this enum controls the ordering of the dimensions of the PointSourcePropagator tensor
+// Ther ordering can be adjusted at will by simply adjusting the ordering here
 typedef enum PointSourcePropagator_dims_t {
-  PSP_DIM_C_SNK = 0,
-  PSP_DIM_C_SRC,
-  PSP_DIM_D_SNK,
-  PSP_DIM_D_SRC,
-  PSP_DIM_T_SNK,
+  PSP_DIM_T_SNK = 0,
   PSP_DIM_X_SNK,
   PSP_DIM_Y_SNK,
-  PSP_DIM_Z_SNK
+  PSP_DIM_Z_SNK,
+  PSP_DIM_D_SNK,
+  PSP_DIM_D_SRC,
+  PSP_DIM_C_SNK,
+  PSP_DIM_C_SRC,
 } PointSourcePropagator_dims_t;
 
 class PointSourcePropagator
@@ -77,11 +79,16 @@ public:
                        core.geom.tmlqcd_lat.LY *
                        core.geom.tmlqcd_lat.LZ;
 
-    nyom::Stopwatch sw;
+    nyom::Stopwatch sw(core.geom.get_nyom_comm());
     int64_t npair = 4*3*local_volume;
     std::vector<int64_t> indices( 4*3*local_volume );
     int64_t counter = 0;
 
+    // The propagator vector on the tmLQCD side is ordered
+    // (slowest to fastest) TXYZ Dirac colour complex
+    // On the other hand, the CTF::Tensor has the ordering
+    // given by the index translation below, with T
+    // running fastest.
     for(int64_t t = 0; t < core.geom.tmlqcd_lat.T; ++t){
 
       int64_t gt = core.geom.tmlqcd_lat.T*core.geom.tmlqcd_mpi.proc_coords[0] + t;
@@ -97,15 +104,14 @@ public:
 
             for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
               for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
-                indices[counter] = gt    * (4*4*3*3*Nz*Ny*Nx) +
-                                   gx    * (4*4*3*3*Nz*Ny)    +
-                                   gy    * (4*4*3*3*Nz)       +
-                                   gz    * (4*4*3*3)          +
-                                   src_d * (4*3*3)            +
-                                   snk_d * (3*3)              +
-                                   src_c * (3)                +
-                                   snk_c;
-
+                indices[counter] = gt                         +
+                                   gx    * (Nt)               +
+                                   gy    * (Nt*Nx)            +
+                                   gz    * (Nt*Nx*Ny)         +
+                                   snk_d * (Nt*Nx*Ny*Nz)      +
+                                   src_d * (Nt*Nx*Ny*Nz*4)    +
+                                   snk_c * (Nt*Nx*Ny*Nz*4*4)  +
+                                   src_c * (Nt*Nx*Ny*Nz*4*4*3);
                 counter++;
               }
             }
@@ -115,6 +121,13 @@ public:
     }
     tensor.write(counter, indices.data(), reinterpret_cast<const complex<double>*>(&propagator[0]) );
     sw.elapsed_print("PointSourcePropagator fill");
+  }
+
+  // by overloading the square bracket operator, we can give convenient access to the underlying
+  // tensor
+  CTF::Idx_Tensor operator[](const char * idx_map)
+  {
+    return tensor[idx_map];
   }
 
   CTF::Tensor< complex<double> > tensor;
