@@ -31,6 +31,8 @@
 #include "gammas.hpp"
 
 #include "PointSourcePropagator.hpp"
+#include "SpinColourPropagator.hpp"
+#include "MomentumTensor.hpp"
 
 extern "C" {
 #include "global.h"
@@ -67,6 +69,8 @@ typedef enum flav_idx_t {
 
 int main(int argc, char ** argv) {
   nyom::Core core(argc,argv);
+  
+  nyom::Stopwatch sw( core.geom.get_nyom_comm() );
 
   const int rank = core.geom.get_myrank();
   const int np = core.geom.get_Nranks();
@@ -120,10 +124,15 @@ int main(int argc, char ** argv) {
   props.emplace_back(core); // storage for "up" propagator
 
   nyom::PointSourcePropagator Sconj(core);
-  nyom::PointSourcePropagator Ssnk(core);
-  nyom::PointSourcePropagator Ssrc(core);
+  nyom::SpinColourPropagator Ssnk(core);
+  nyom::SpinColourPropagator Ssrc(core);
 
-  nyom::Stopwatch sw( core.geom.get_nyom_comm() );
+  sw.reset();
+  nyom::MomentumTensor mom_src(core,
+                               {1, 0, 0});
+  nyom::MomentumTensor mom_snk(core,
+                               {-1, 0, 0});
+  sw.elapsed_print("Momentum tensor creation");
 
   for(int src_id = 0; src_id < 1; src_id++){
     int src_coords[4];
@@ -205,8 +214,7 @@ int main(int argc, char ** argv) {
               printf0("Thread %d filling tensor\n", omp_get_thread_num());
               props[flav_idx].fill(prop_fill,
                                    src_d,
-                                   src_c,
-                                   core);
+                                   src_c);
             }
           } // OpenMP parallel closing brace
         }
@@ -216,29 +224,36 @@ int main(int argc, char ** argv) {
     // transpose colour indices and take complex conjugate for gamma5  hermiticity
     // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
     // below
+    sw.reset();
     Sconj["txyzijba"] = props[UP]["txyzijab"];
     ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
+    sw.elapsed_print_and_reset("Complex conjugation and colour transpose");
 
     // perform contractions
     CTF::Flop_counter flp;
     CTF::Vector< std::complex<double> > C(Nt,core.geom.get_world());
     double norm = 1.0/((double)Ns*Ns*Ns);
+    
+    flp.zero();
 
-    std::complex<double>* correl_pairs;
-    int64_t correl_npair;
+    sw.reset();
+    Ssrc["tijab"] = mom_src["XYZ"] * props[UP]["tXYZijab"];
+    Ssnk["tijab"] = mom_snk["XYZ"] * Sconj["tXYZijab"];
+    sw.elapsed_print_and_reset("source and sink momentum projection");
+
+    std::complex<double>* correl_values;
+    int64_t correl_nval;
     // many of these are non-sensical or zero, but for now, let's loop over all of them
     for( std::string g_src : {"5", "05"} ){
       for( std::string g_snk : {"5", "05"} ){
-        sw.reset();
-        flp.zero();
 
-        Ssrc["txyzijab"] = props[UP]["txyziLab"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
+        Ssrc["tijab"] = Ssrc["tiLab"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
         sw.elapsed_print_and_reset("source gamma insertion");
 
-        Ssnk["txyzijab"] = Sconj["txyzLiab"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
+        Ssnk["tijab"] = Ssnk["tLiab"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
         sw.elapsed_print_and_reset("sink gamma insertion");
 
-        C["t"] = Ssnk["tXYZIJAB"] * Ssrc["tXYZJIBA"];
+        C["t"] = Ssnk["tIJAB"] * Ssrc["tJIBA"];
         measureFlopsPerSecond(sw.elapsed_print_and_reset("meson 2-pt function").mean,
                               flp, 
                               "meson 2-pt function",
@@ -246,7 +261,7 @@ int main(int argc, char ** argv) {
                               core.geom.get_Nranks(),
                               core.geom.get_nyom_comm() );
 
-        C.read_all(&correl_npair,&correl_pairs);
+        C.read_all(&correl_nval,&correl_values);
         if(rank==0){
           ofstream correl;
           char fname[200]; 
@@ -256,15 +271,15 @@ int main(int argc, char ** argv) {
                    src_coords[0], src_coords[1], src_coords[2], src_coords[3],
                    g_snk.c_str(), g_src.c_str());
           correl.open(fname);
-          for(int64_t i = 0; i < correl_npair; ++i){
+          for(int64_t i = 0; i < correl_nval; ++i){
             correl << i << "\t" << 
-              std::setprecision(16) << norm*correl_pairs[i].real() << "\t" << 
-              std::setprecision(16) << norm*correl_pairs[i].imag() << 
+              std::setprecision(16) << norm*correl_values[i].real() << "\t" << 
+              std::setprecision(16) << norm*correl_values[i].imag() << 
               endl;
           }
           correl.close();
         }
-        free(correl_pairs);
+        free(correl_values);
         sw.elapsed_print_and_reset("Correlator I/O");
       }
     }
