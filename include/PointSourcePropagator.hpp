@@ -48,9 +48,10 @@ typedef enum PointSourcePropagator_dims_t {
 class PointSourcePropagator
 {
 public:
-  PointSourcePropagator(const nyom::Core &core)
+  PointSourcePropagator(const nyom::Core &core_in) :
+    core(core_in)
   {
-    init(core);
+    init();
   }
 
   // we don't want this to be default-constructible
@@ -66,8 +67,7 @@ public:
 
   void fill(const spinor * const propagator,
             const int src_d,
-            const int src_c,
-            const nyom::Core &core){
+            const int src_c){
 
     int Nt = core.input_node["Nt"].as<int>();
     int Nx = core.input_node["Nx"].as<int>();
@@ -134,7 +134,9 @@ public:
   int src_coords[4];
 
 private:
-  void init(const nyom::Core &core)
+  const nyom::Core & core;
+
+  void init()
   {
     int shapes[8] = {NS, NS, NS, NS, NS, NS, NS, NS};
     int sizes[8];

@@ -42,9 +42,10 @@ typedef enum SpinDilutedTimesliceSourceVector_dims_t {
 class SpinDilutedTimesliceSourceVector
 {
 public:
-  SpinDilutedTimesliceSourceVector(const nyom::Core &core)
+  SpinDilutedTimesliceSourceVector(const nyom::Core &core_in) :
+    core(core_in)
   {
-    init(core);
+    init();
   }
 
   // we don't want this to be default-constructible
@@ -52,8 +53,7 @@ public:
 
   void fill(const spinor * const source,
             const int dsrc_in,
-            const int tsrc_in,
-            const nyom::Core &core){
+            const int tsrc_in){
     dsrc = dsrc_in;
     tsrc = tsrc_in;
 
@@ -122,8 +122,7 @@ public:
 
   void push(spinor * const source,
             const int64_t d_in,
-            const int64_t t_in,
-            const nyom::Core &core){
+            const int64_t t_in){
     
     int Nt = core.input_node["Nt"].as<int>();
     int Nx = core.input_node["Nx"].as<int>();
@@ -205,7 +204,9 @@ public:
   int tsrc;
 
 private:
-  void init(const nyom::Core &core)
+  const nyom::Core & core;
+
+  void init()
   {
     int shapes[4] = {NS, NS, NS, NS};
     int sizes[4];
@@ -231,9 +232,10 @@ typedef enum SpinDilutedTimeslicePropagatorVector_dims_t {
 class SpinDilutedTimeslicePropagatorVector
 {
 public:
-  SpinDilutedTimeslicePropagatorVector(const nyom::Core &core)
+  SpinDilutedTimeslicePropagatorVector(const nyom::Core &core_in) :
+    core(core_in)
   {
-    init(core);
+    init();
   }
 
   // we don't want this to be default-constructible
@@ -241,8 +243,7 @@ public:
 
   void fill(const spinor * const propagator,
             const int dsrc_in,
-            const int tsrc_in,
-            const nyom::Core &core){
+            const int tsrc_in){
     dsrc = dsrc_in;
     tsrc = tsrc_in;
 
@@ -294,8 +295,7 @@ public:
     sw.elapsed_print("SpinDilutedTimeslicePropagatorVector fill");
   }
 
-  void push(spinor * const propagator,
-            const nyom::Core &core){
+  void push(spinor * const propagator){
     
     int Nt = core.input_node["Nt"].as<int>();
     int Nx = core.input_node["Nx"].as<int>();
@@ -346,7 +346,9 @@ public:
   int tsrc;
 
 private:
-  void init(const nyom::Core &core)
+  const nyom::Core & core;
+
+  void init()
   {
     int shapes[6] = {NS, NS, NS, NS, NS, NS};
     int sizes[6];
