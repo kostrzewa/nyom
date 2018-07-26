@@ -93,12 +93,14 @@ class Core {
           }
         }
       }
-      MPI_Barrier(MPI_COMM_WORLD);
+      sw = new nyom::Stopwatch( geom.get_nyom_comm() );
+      MPI_Barrier( geom.get_nyom_comm() );
     }
       
 
     ~Core(){
-      sw.elapsed_print("nyom::Core lifetime");
+      sw->elapsed_print("nyom::Core lifetime");
+      delete sw;
     }
 
     /**
@@ -177,7 +179,7 @@ class Core {
 
     bool initialised;
 
-    nyom::Stopwatch sw;
+    nyom::Stopwatch* sw;
 };
 
 }

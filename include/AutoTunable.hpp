@@ -71,7 +71,7 @@ class AutoTunable {
         if( msg.str().size() > 0 ) { throw( std::runtime_error(msg.str()) ); }
       }
 
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier( core.geom.get_nyom_comm() );
 
       for( auto& entry : boost::make_iterator_range( fs::directory_iterator(fs_path), {} ) ){
         double fom = 0.0;
@@ -86,7 +86,7 @@ class AutoTunable {
 
         add_measurement(entry.path().filename().string(), fom, true);
       }
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier( core.geom.get_nyom_comm() );
     }
 
     // cannot be standard constructible because nyom::Core must have been initialised!

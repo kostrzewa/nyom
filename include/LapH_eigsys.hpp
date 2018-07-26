@@ -100,7 +100,7 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
   /* We split the communicator into groups which hold the same time slices.
    * Within the group, we determine the rank ordering with Z process location
    * running fastest, then Y, then X. */
-  MPI_Comm_split(MPI_COMM_WORLD,
+  MPI_Comm_split(core.geom.get_nyom_comm(),
                  core.geom.tmlqcd_mpi.proc_coords[0],
 // Z running fastest
                  core.geom.tmlqcd_mpi.proc_coords[3] +
@@ -113,9 +113,9 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
                 &ts_Nranks);
 
   for( int proc = 0; proc < core.geom.get_Nranks(); ++proc ){
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(core.geom.get_nyom_comm() );
     if( proc == core.geom.get_myrank() ){
-      printf("Process %d in MPI_COMM_WORLD has coords (txyz) %d %d %d %d\n"
+      printf("Process %d in nyom_comm has coords (txyz) %d %d %d %d\n"
              "Process %d in ts_comm\n", 
              core.geom.get_myrank(),
              core.geom.tmlqcd_mpi.proc_coords[0],
@@ -158,7 +158,7 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
       ev_file.close();
     }
     
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier( core.geom.get_nyom_comm() );
     elapsed = fs_sw.elapsed();
     std::stringstream msg;
     msg << "ev_file_read time: " << elapsed.mean <<
@@ -197,7 +197,7 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
       // actually perform one
       V.write(0, NULL, NULL);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier( core.geom.get_nyom_comm() );
     elapsed = fs_sw.elapsed();
     msg << "V.write time(mean,min,max): " << 
       elapsed.mean << " " << elapsed.min << " " << elapsed.max <<
@@ -207,7 +207,7 @@ void read_LapH_eigsys_from_files(nyom::LapH_eigsys & V,
                 msg.str(),
                 log_master);
   } // t
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier( core.geom.get_nyom_comm() );
   sw.elapsed_print_and_reset("V read from file");
 } // read_LapH_eigsys_from_files
 
@@ -232,7 +232,8 @@ void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
   nyom::Stopwatch sw;
 
   /* the reasonable thing to do here would be MPI I/O but it would take a
-   * while to implement. As a result, we are going to split MPI_COMM_WORLD
+   * while to implement. As a result, we are going to split our global communicator
+   * core.geom.get_nyom_comm()
    * into groups on tmlqcd_mpi.proc_coords[0].
    * For each group, we designate one process for writing and collect all
    * data for each timeslice there and then write. */
@@ -244,7 +245,7 @@ void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
   /* We split the communicator into groups which hold the same time slices.
    * Within the group, we determine the rank ordering with Z process location
    * running fastest, then Y, then X. */
-  MPI_Comm_split(MPI_COMM_WORLD,
+  MPI_Comm_split(core.geom.get_nyom_comm(),
                  core.geom.tmlqcd_mpi.proc_coords[0],
 // Z running fastest
                  core.geom.tmlqcd_mpi.proc_coords[3] +
@@ -257,9 +258,9 @@ void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
                 &ts_Nranks);
 
   for( int proc = 0; proc < core.geom.get_Nranks(); ++proc ){
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(core.geom.get_nyom_comm());
     if( proc == core.geom.get_myrank() ){
-      printf("Process %d in MPI_COMM_WORLD has coords (txyz) %d %d %d %d\n"
+      printf("Process %d in nyom_comm has coords (txyz) %d %d %d %d\n"
              "Process %d in ts_comm\n", 
              core.geom.get_myrank(),
              core.geom.tmlqcd_mpi.proc_coords[0],
@@ -319,7 +320,7 @@ void write_LapH_eigsys_to_files(nyom::LapH_eigsys & V,
       V.read(0, NULL, NULL);
     }
   } // t
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(core.geom.get_nyom_comm());
   sw.elapsed_print("Writing of eigenvectors");
 } // write_LapH_eigsys_to_files
 

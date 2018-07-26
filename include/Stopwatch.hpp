@@ -102,9 +102,9 @@ class Stopwatch {
       return(duration);
     }
 
-    void measureFlopsPerSecond(CTF::Flop_counter& flp,
-                               const char* const name,
-                               const int np ){
+    void measure_flops_per_second(CTF::Flop_counter& flp,
+                                  const char* const name,
+                                  const int np ){
       int64_t flops = flp.count( MPI_COMM_WORLD );
       double fps = (double)(flops)/(elapsed().mean*1e6/np);
       if(rank==0){

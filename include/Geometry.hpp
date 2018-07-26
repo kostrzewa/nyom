@@ -53,10 +53,16 @@ class Geometry {
       tmLQCD_get_mpi_params(&tmlqcd_mpi);
       tmLQCD_get_lat_params(&tmlqcd_lat);
 
-      MPI_Comm_size(MPI_COMM_WORLD, &Nranks);
-      MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-      world = new CTF::World(argc,argv);
+      MPI_Comm_dup(MPI_COMM_WORLD, &ctf_comm);
+      MPI_Comm_dup(MPI_COMM_WORLD, &nyom_comm);
+
+      MPI_Comm_size(nyom_comm, &Nranks);
+      MPI_Comm_rank(nyom_comm, &myrank);
+      
+      // CTF::World explicitly constructed with duplicated communicator
+      // instead of default construction
+      world = new CTF::World(ctf_comm,argc,argv);
     }
 
   ~Geometry(){
@@ -65,6 +71,8 @@ class Geometry {
 
   void finalise(void){
     delete world;
+    MPI_Comm_free(&ctf_comm);
+    MPI_Comm_free(&nyom_comm);
     tmLQCD_finalise();
     MPI_Finalize();
   }
@@ -72,7 +80,7 @@ class Geometry {
   // print tmLQCD process information in order
   void print_tmLQCD_geometry(){
     for(int r = 0; r < tmlqcd_mpi.nproc; ++r){
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(nyom_comm);
       if(r == myrank){ 
         printf("tmLQCD mpi params  cart_id: %5d proc_id: %5d time_rank: %3d\n", 
                   tmlqcd_mpi.cart_id, tmlqcd_mpi.proc_id, tmlqcd_mpi.time_rank);
@@ -82,7 +90,7 @@ class Geometry {
                tmlqcd_mpi.proc_coords[2],
                tmlqcd_mpi.proc_coords[3]);
       }
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(nyom_comm);
     }
   }
 
@@ -98,11 +106,23 @@ class Geometry {
     return Nranks;
   }
 
+  MPI_Comm get_ctf_comm() const
+  {
+    return ctf_comm;
+  }
+
+  MPI_Comm get_nyom_comm() const
+  {
+    return nyom_comm;
+  }
+
   tmLQCD_lat_params tmlqcd_lat;
   tmLQCD_mpi_params tmlqcd_mpi;
 
   private:
     CTF::World* world;
+    MPI_Comm ctf_comm;
+    MPI_Comm nyom_comm;
     int Nranks;
     int myrank;
 

@@ -51,7 +51,7 @@ public:
   {
     variants.emplace("P_Vdagger", std::mem_fun(&Vdagger_project_SpinDilutedTimeslicePropagatorVector::P_Vdagger));
     variants.emplace("Vdagger_P", std::mem_fun(&Vdagger_project_SpinDilutedTimeslicePropagatorVector::Vdagger_P));
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier( core.geom.get_nyom_comm() );
   }
 
   Vdagger_project_SpinDilutedTimeslicePropagatorVector() = delete;
@@ -197,7 +197,7 @@ public:
     src_proj_sparse["et"] = src_proj["et"];
     src_proj_sparse.sparsify();
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier( core.geom.get_nyom_comm() );
   }
 
   V_project_SpinDilutedTimesliceSourceVector() = delete;
