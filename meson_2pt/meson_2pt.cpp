@@ -17,7 +17,9 @@
  * along with nyom.  If not, see <http://www.gnu.org/licenses/>.
  ***********************************************************************/
 
-#include <cstdio>
+#include "Core.hpp"
+#include "Logfile.hpp"
+#include "Stopwatch.hpp"
 
 #include <vector>
 #include <iostream>
@@ -26,9 +28,9 @@
 #include <random>
 #include <iomanip>
 
-#include <ctf.hpp>
+#include "gammas.hpp"
 
-#include "tmLQCD.h"
+#include "PointSourcePropagator.hpp"
 
 extern "C" {
 #include "global.h"
@@ -36,139 +38,66 @@ extern "C" {
 #include "start.h"
 #include "io/spinor.h"
 #include "linalg/convert_eo_to_lexic.h"
-}
+} // extern "C"
 
-#include "gammas.hpp"
+#include <omp.h>
 
-using namespace CTF;
-using namespace std;
-using namespace nyom;
-
-void timeReset( std::chrono::time_point<std::chrono::steady_clock>& time ){
-  MPI_Barrier(MPI_COMM_WORLD);
-  time = std::chrono::steady_clock::now();
-}
-
-double timeDiff(
-        const std::chrono::time_point<std::chrono::steady_clock>& time, 
-        const char* const name,
-        const int rank){
-  MPI_Barrier(MPI_COMM_WORLD);
-  std::chrono::duration<double> elapsed_seconds = std::chrono::steady_clock::now() - time;
-  if(rank==0){ 
-    cout << "Time for " << name << " " << elapsed_seconds.count() <<
-      " seconds" << std::endl;
-  }
-  return(elapsed_seconds.count());
-}
-
-double timeDiffAndUpdate(
-        std::chrono::time_point<std::chrono::steady_clock>& time, 
-        const char* const name,
-        const int rank){
-  double rval = timeDiff(time,name,rank);
-  time = std::chrono::steady_clock::now();
-  return(rval);
-}
+#define printf0 if(core.geom.get_myrank()==0) printf
 
 double measureFlopsPerSecond( double local_time, 
                               CTF::Flop_counter& flp,
                               const char* const name,
-                              const int rank, const int np ){
+                              const int rank,
+                              const int np,
+                              MPI_Comm comm)
+{
   double global_time;
-  MPI_Allreduce( &local_time, &global_time, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD );
-  int64_t flops = flp.count( MPI_COMM_WORLD );
+  MPI_Allreduce( &local_time, &global_time, 1, MPI_DOUBLE, MPI_SUM, comm );
+  int64_t flops = flp.count( comm );
   double fps = (double)(flops)/(global_time*1e6/np);
   if(rank==0){
-    printf("'Performance in '%s': %.6e mflop/s\n", name, fps);
+    printf("Performance in '%s': %.6e mflop/s\n", name, fps);
   }
 }
 
+typedef enum flav_idx_t {
+  UP = 0,
+  DOWN
+} flav_idx_t;
+
 int main(int argc, char ** argv) {
-  int rank, np, d;
+  nyom::Core core(argc,argv);
 
-  MPI_Init(&argc,&argv);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &np);
-  
-  tmLQCD_invert_init(argc,argv,1,0);
-  
-  tmLQCD_lat_params lat;
-  tmLQCD_mpi_params mpi;
+  const int rank = core.geom.get_myrank();
+  const int np = core.geom.get_Nranks();
 
-  tmLQCD_get_lat_params(&lat);
-  tmLQCD_get_mpi_params(&mpi);
+  const int Nt = core.input_node["Nt"].as<int>();
+  const int Ns = core.input_node["Nx"].as<int>();
+  const int conf_start = core.input_node["conf_start"].as<int>();
+  const int conf_stride = core.input_node["conf_stride"].as<int>();
+  const int conf_end = core.input_node["conf_end"].as<int>();
+
+  const int nyom_threads = core.input_node["threaded"].as<bool>() ? 2 : 1;
+
+  const int Nd = 4;
+  const int Nc = 3;
 
   std::chrono::time_point<std::chrono::steady_clock> start;
   std::chrono::time_point<std::chrono::steady_clock> moment;
   std::chrono::duration<float> elapsed_seconds;
-  
-  if(rank==0){ 
-    printf("tmLQCD local lattice volume T:%02d x X:%02d x Y:%02d x Z:%02d\n", 
-              lat.T, lat.LX, lat.LY, lat.LZ);
-    printf("tmLQCD mpi params    nproc: %05d nproc_t: %02d nproc_x: %02d nproc_y: %02d nproc_z: %02d\n", 
-              mpi.nproc, mpi.nproc_t, mpi.nproc_x, mpi.nproc_y, mpi.nproc_z);
-  }
 
-  // print tmLQCD process information in order
-  for(int r = 0; r < mpi.nproc; ++r){
-      if(r == rank){ 
-        printf("tmLQCD mpi params  cart_id: %05d proc_id: %05d time_rank: %02d\n", 
-                  mpi.cart_id, mpi.proc_id, mpi.time_rank);
-        printf("tmLQCD mpi params  proc[t]: %02d proc[x]: %02d proc[y]: %02d proc_z: %02d\n", 
-                  mpi.proc_coords[0], mpi.proc_coords[1], mpi.proc_coords[2], mpi.proc_coords[3]);
-        MPI_Barrier(MPI_COMM_WORLD);
-      }else{
-        MPI_Barrier(MPI_COMM_WORLD);
-      }
-  }
-
-  World dw(argc, argv);
-
-  timeReset(moment);
-  init_gammas(dw);
-  timeDiff(moment,"gamma initialisation", rank);
-  
-  // print out all gamma matrices for cross-check
-  //for( std::string g1 : { "I", "0", "1", "2", "3", "5", "Ip5", "Im5" } ){ 
-  //  if(rank==0) cout << "gamma" << g1 << endl;
-  //  MPI_Barrier(MPI_COMM_WORLD);
-  //  g[g1].print();
-  //}
-  //
-  //for( std::string g1 : { "0", "1", "2", "3", "5" } ){ 
-  //  for( std::string g2 : { "0", "1", "2", "3" } ){
-  //    if( g1 == g2 ) continue;
-  //    if(rank==0) cout << "gamma" << g1+g2 << endl;
-  //    MPI_Barrier(MPI_COMM_WORLD);
-  //    g[g1+g2].print();
-  //  }
-  //}
-
-  // prevent integer overflows further down the line
-  size_t Ds = 4;
-  size_t Cs = 3;
-  size_t Fs = 2;
-  size_t Ls = mpi.nproc_x * LX;
-  size_t Ts = mpi.nproc_t * T;
-
-  int prop_sizes[8] = { Ts, Ls, Ls, Ls, Ds, Ds, Cs, Cs };
-  //int prop_sizes[8] = { Cs, Cs, Ds, Ds, Ls, Ls, Ls, Ts };
-  int prop_shapes[8] = { NS, NS, NS, NS, NS, NS, NS, NS };
-  //int prop_sizes[6] = { Ts, Ls*Ls*Ls, Ds, Ds, Cs, Cs };
- 
-  Tensor< std::complex<double> > S(8, prop_sizes, prop_shapes, dw);
-  Tensor< std::complex<double> > Sconj(8, prop_sizes, prop_shapes, dw);
-  
-  Tensor< std::complex<double> > Ssrc(8, prop_sizes, prop_shapes, dw);
-  Tensor< std::complex<double> > Ssnk(8, prop_sizes, prop_shapes, dw);
-
-  const int nsources = 5;
-
-  timeReset(start);
+  nyom::init_gammas( core.geom.get_world() );
 
   spinor ** temp_field = NULL;
-  init_solver_field(&temp_field,VOLUMEPLUSRAND,2);
+  init_solver_field(&temp_field,VOLUMEPLUSRAND,3);
+
+  spinor ** temp_eo_spinors = NULL;
+  init_solver_field(&temp_eo_spinors,VOLUME/2,2);
+
+  spinor * src_spinor = temp_field[2];
+  spinor * prop_inv = temp_field[0];
+  spinor * prop_fill = temp_field[1];
+  spinor * prop_tmp;
 
   // read propagators from file(s)? if yes, don't need to load gauge field
   bool read = false;
@@ -176,24 +105,31 @@ int main(int argc, char ** argv) {
   if(read) {
     write = false; 
   } else {
-    tmLQCD_read_gauge(lat.nstore); 
+    tmLQCD_read_gauge( core.geom.tmlqcd_lat.nstore ); 
   }
   
   std::random_device r;
   std::mt19937 mt_gen(12345);
 
   // uniform distribution in space coordinates
-  std::uniform_int_distribution<int> ran_space_idx(0, Ls-1);
+  std::uniform_int_distribution<int> ran_space_idx(0, Ns-1);
   // uniform distribution in time coordinates
-  std::uniform_int_distribution<int> ran_time_idx(0, Ts-1);
+  std::uniform_int_distribution<int> ran_time_idx(0, Nt-1);
 
-  int64_t* prop_tensor_indices = (int64_t*) calloc(4*3*VOLUME, sizeof(int64_t));
-  std::complex<double>* prop_tensor_pairs = (std::complex<double>*) calloc(4*3*VOLUME, sizeof(std::complex<double>));
-  for(int src_id = 0; src_id < nsources; src_id++){
+  std::vector<nyom::PointSourcePropagator> props;
+  props.emplace_back(core); // storage for "up" propagator
+
+  nyom::PointSourcePropagator Sconj(core);
+  nyom::PointSourcePropagator Ssnk(core);
+  nyom::PointSourcePropagator Ssrc(core);
+
+  nyom::Stopwatch sw( core.geom.get_nyom_comm() );
+
+  for(int src_id = 0; src_id < 1; src_id++){
     int src_coords[4];
     
     // for certainty, we broadcast the source coordinates from rank 0 
-    if(rank==0){
+    if(rank == 0){
       src_coords[0] = ran_time_idx(mt_gen);
       for(int i = 1; i < 4; ++i){
         src_coords[i] = ran_space_idx(mt_gen);
@@ -203,112 +139,112 @@ int main(int argc, char ** argv) {
               4,
               MPI_INT,
               0,
-              MPI_COMM_WORLD);
+              core.geom.get_nyom_comm());
 
-    for(size_t src_s = 0; src_s < Ds; ++src_s){
-      for(size_t src_c = 0; src_c < Cs; ++src_c){
-        timeReset(moment);
-        if(read == false){
-          full_source_spinor_field_point(temp_field[1], src_s, src_c, src_coords); 
-          //source_spinor_field(g_spinor_field[0],g_spinor_field[1], src_s, src_c);
-          //convert_eo_to_lexic(temp_field[1],g_spinor_field[0],g_spinor_field[1]);
-          tmLQCD_invert((double*)temp_field[0],(double*)temp_field[1],0,0);
-          timeDiffAndUpdate(moment,"inversion",rank);
+    for(int flav_idx : {UP} ){
+      props[flav_idx].set_src_coords(src_coords);
+      for(size_t src_d = 0; src_d < Nd; ++src_d){
+        for(size_t src_c = 0; src_c < Nc; ++src_c){
+          #pragma omp parallel num_threads(nyom_threads)
+          {
+            if( (nyom_threads == 1) ||
+                (nyom_threads != 1 && omp_get_thread_num() == 0) ){
+              printf0("Thread id %d of %d doing inversion\n", omp_get_thread_num(), omp_get_num_threads());
+              if(read == false){
+                full_source_spinor_field_point(temp_field[2], src_d, src_c, src_coords); 
+                tmLQCD_invert((double*)prop_inv,
+                              (double*)src_spinor,
+                              flav_idx,
+                              0);
 
-          if(write){
-            convert_lexic_to_eo(g_spinor_field[0], g_spinor_field[1], temp_field[0]);
-            WRITER *writer = NULL;
-            char fname[200];
-            snprintf(fname,200,"source.%04d.00.00.inverted",lat.nstore);
-            construct_writer(&writer, fname, 1);
-            write_spinor(writer, &g_spinor_field[0], &g_spinor_field[1], 1, 64);
-            destruct_writer(writer);
-          }
-          timeDiffAndUpdate(moment,"propagator io",rank);
-        
-        }else{
-          char fname[200]; snprintf(fname,200,"source.%04d.00.00.inverted",lat.nstore);
-          read_spinor(g_spinor_field[0],g_spinor_field[1],fname, (int)(src_s*Cs+src_c) );
-          convert_eo_to_lexic(temp_field[0],g_spinor_field[0],g_spinor_field[1]);
-          timeDiffAndUpdate(moment,"propagator io",rank);
-        }
-        // globally translate from tmLQCD to Cyclops
-        timeReset(moment);
-        int64_t counter = 0;
-        for(size_t t = 0; t < T; ++t){
-          size_t gt = T*mpi.proc_coords[0] + t;
-
-          for(size_t x = 0; x < LX; ++x){
-            size_t gx = LX*mpi.proc_coords[1] + x;
-
-            for(size_t y = 0; y < LY; ++y){
-              size_t gy = LY*mpi.proc_coords[2] + y;
-
-              for(size_t z = 0; z < LZ; ++z){
-                size_t gz = LZ*mpi.proc_coords[3] + z;
-                size_t x_3d = Ls*Ls*gx + Ls*gy + gz;
-
-                for(size_t prop_s = 0; prop_s < Ds; ++prop_s){
-                  for(size_t prop_c = 0; prop_c < Cs; ++prop_c){
-                    // global Cyclops index for S, leftmost tensor index runs fastest
-                    prop_tensor_indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
-                                                   prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
-                                                   src_s  * (Ts*Ls*Ls*Ls*Ds)       +
-                                                   prop_s * (Ts*Ls*Ls*Ls)          +
-                                                   gz     * (Ts*Ls*Ls)             +
-                                                   gy     * (Ts*Ls)                +
-                                                   gx     * (Ts)                   +
-                                                   gt;
-                    //indices[counter] = src_c  * (Ts*Ls*Ls*Ls*Ds*Ds*Cs) +
-                    //                   prop_c * (Ts*Ls*Ls*Ls*Ds*Ds)    +
-                    //                   src_s  * (Ts*Ls*Ls*Ls*Ds)       +
-                    //                   prop_s * (Ts*Ls*Ls*Ls)          +
-                    //                   x_3d   * (Ts)                   + // x_3d runs from 0 to Ls^3
-                    //                   gt;
-
-                    // need to write a clean wrapper for this which
-                    // deals with the struct directly instead of doing two different pointer arithmetics in one line...
-                    prop_tensor_pairs[counter] = *( ((_Complex double*)(temp_field[0] + g_ipt[t][x][y][z])) + prop_s*Cs + prop_c );
-                    counter++;
-                  }
+                if(write){
+                  convert_lexic_to_eo(temp_eo_spinors[0], temp_eo_spinors[1], prop_inv);
+                  WRITER *writer = NULL;
+                  char fname[200];
+                  snprintf(fname,
+                           200,
+                           "source.conf%04d.flav%1d.srct%3d.srcx%3d.srcy%3d.srcz%3d.inverted",
+                           core.geom.tmlqcd_lat.nstore,
+                           flav_idx,
+                           src_coords[0],
+                           src_coords[1],
+                           src_coords[2],
+                           src_coords[3]);
+                  construct_writer(&writer, fname, 1);
+                  write_spinor(writer, &temp_eo_spinors[0], &temp_eo_spinors[1], 1, 64);
+                  destruct_writer(writer);
                 }
+              
+              }else{
+                char fname[200];
+                snprintf(fname,
+                         200,
+                         "source.conf%04d.flav%1d.srct%3d.srcx%3d.srcy%3d.srcz%3d.inverted",
+                         core.geom.tmlqcd_lat.nstore,
+                         flav_idx,
+                         src_coords[0],
+                         src_coords[1],
+                         src_coords[2],
+                         src_coords[3]);
+                read_spinor(temp_eo_spinors[0],temp_eo_spinors[1], fname, (int)(src_d*Nc+src_c) );
+                convert_eo_to_lexic(prop_inv, temp_eo_spinors[0], temp_eo_spinors[1]);
               }
             }
-          }
+          
+            #pragma omp barrier
+            #pragma omp single
+            {
+              printf0("Thread %d switching pointers\n", omp_get_thread_num());
+              prop_tmp = prop_inv;
+              prop_inv = prop_fill;
+              prop_fill = prop_tmp;
+            }
+          
+            if( (nyom_threads == 1) || 
+                (nyom_threads != 1 && omp_get_thread_num() == 1) ){ 
+              printf0("Thread %d filling tensor\n", omp_get_thread_num());
+              props[flav_idx].fill(prop_fill,
+                                   src_d,
+                                   src_c,
+                                   core);
+            }
+          } // OpenMP parallel closing brace
         }
-        // global write with automatic MPI communication
-        S.write(4*3*VOLUME,prop_tensor_indices,prop_tensor_pairs);
-        timeDiffAndUpdate(moment,"copying propagator to tensor",rank);
       }
     }
  
     // transpose colour indices and take complex conjugate for gamma5  hermiticity
     // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
     // below
-    Sconj["txyzijba"] = S["txyzijab"];
-    ((Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
+    Sconj["txyzijba"] = props[UP]["txyzijab"];
+    ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
 
     // perform contractions
-    Flop_counter flp;
-    Vector< std::complex<double> > C(Ts,dw);
-    double norm = 1.0/((double)Ls*Ls*Ls);
+    CTF::Flop_counter flp;
+    CTF::Vector< std::complex<double> > C(Nt,core.geom.get_world());
+    double norm = 1.0/((double)Ns*Ns*Ns);
 
     std::complex<double>* correl_pairs;
     int64_t correl_npair;
     // many of these are non-sensical or zero, but for now, let's loop over all of them
     for( std::string g_src : {"5", "05"} ){
       for( std::string g_snk : {"5", "05"} ){
-          timeReset(moment);
-          flp.zero();
+        sw.reset();
+        flp.zero();
 
-        Ssrc["txyzijab"] = S["txyziLab"] * (g[g_src])["LK"] * (g["5"])["Kj"];
-          timeDiffAndUpdate(moment,"source gamma insertion",rank);
+        Ssrc["txyzijab"] = props[UP]["txyziLab"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
+        sw.elapsed_print_and_reset("source gamma insertion");
 
-        Ssnk["txyzijab"] = Sconj["txyzLiab"] * (g["5"])["LK"]  * (g[g_snk])["Kj"];
-          timeDiffAndUpdate(moment,"sink gamma insertion",rank);
+        Ssnk["txyzijab"] = Sconj["txyzLiab"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
+        sw.elapsed_print_and_reset("sink gamma insertion");
 
         C["t"] = Ssnk["tXYZIJAB"] * Ssrc["tXYZJIBA"];
-          measureFlopsPerSecond( timeDiffAndUpdate(moment,"2-pt contraction",rank), flp, "meson 2-pt function", rank, np );
+        measureFlopsPerSecond(sw.elapsed_print_and_reset("meson 2-pt function").mean,
+                              flp, 
+                              "meson 2-pt function",
+                              core.geom.get_myrank(),
+                              core.geom.get_Nranks(),
+                              core.geom.get_nyom_comm() );
 
         C.read_all(&correl_npair,&correl_pairs);
         if(rank==0){
@@ -316,7 +252,7 @@ int main(int argc, char ** argv) {
           char fname[200]; 
           snprintf(fname, 200,
                    "pion_2pt_conf%05d_srcidx%03d_srct%03d_srcx%03d_srcy%03d_srcz%03d_snkG%s_srcG%s.txt",
-                   lat.nstore, src_id,
+                   core.geom.tmlqcd_lat.nstore, src_id,
                    src_coords[0], src_coords[1], src_coords[2], src_coords[3],
                    g_snk.c_str(), g_src.c_str());
           correl.open(fname);
@@ -329,18 +265,14 @@ int main(int argc, char ** argv) {
           correl.close();
         }
         free(correl_pairs);
-        timeDiffAndUpdate(moment,"Correlator IO",rank);
+        sw.elapsed_print_and_reset("Correlator I/O");
       }
     }
   } // loop over sources
-  free(prop_tensor_indices); free(prop_tensor_pairs);
-  finalize_solver(temp_field,2);
-  MPI_Barrier(MPI_COMM_WORLD);
-  elapsed_seconds = std::chrono::steady_clock::now()-start;
-  if(rank==0)
-    cout << "All meson 2-pt functions took " << elapsed_seconds.count() << " seconds" << std::endl;
 
-  tmLQCD_finalise();  
-  MPI_Finalize(); // probably need to destroy CTF::World before calling this because it throws lots of errors
+  MPI_Barrier( core.geom.get_nyom_comm() );
+
+  finalize_solver(temp_field,3);
+  finalize_solver(temp_eo_spinors,2);
   return 0;
 }
