@@ -39,22 +39,28 @@ void init_gammas(CTF::World& dw){
     i_g.push_back(g1);
   }
   
-  g["I"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
-  g["0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
-  g["1"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
-  g["2"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
-  g["3"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
-  g["5"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
-  g["Im5"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
-  g["Ip5"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
-  g["Ip0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
-  g["Im0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
+  g["I"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gI");
+  g["0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "g0");
+  g["1"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "g1");
+  g["2"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "g2");
+  g["3"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "g3");
+  g["5"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "g5");
+  g["Im5"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIm5");
+  g["Ip5"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIp5");
+  g["Ip0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIp0");
+  g["Im0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIm0");
 
   for( std::string g1 : { "0", "1", "2", "3", "5" } ){
     for( std::string g2 : { "0", "1", "2", "3", "5" } ){
       if( g1 == g2 ) continue;
       i_g.push_back(g1+g2);
-      g[g1+g2] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw);
+      g[g1+g2] = CTF::Tensor<std::complex<double> >
+        (2, 
+         gamma_sizes, 
+         gamma_shapes, 
+         dw, 
+         std::string( std::string("g")+g1+g2 ).c_str()
+        );
     }
   } 
 
