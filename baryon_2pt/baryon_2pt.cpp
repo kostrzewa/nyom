@@ -21,34 +21,53 @@
 #include "Logfile.hpp"
 #include "Stopwatch.hpp"
 
-#include <yaml-cpp/yaml.h>
+#include <vector>
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <random>
+#include <iomanip>
 
 #include "gammas.hpp"
 
 #include "PointSourcePropagator.hpp"
+#include "SpinColourPropagator.hpp"
+#include "SpinPropagator.hpp"
+#include "MomentumTensor.hpp"
+#include "LeviCivita.hpp"
 
 extern "C" {
 #include "global.h"
 #include "solver/solver_field.h"
+#include "start.h"
 #include "io/spinor.h"
 #include "linalg/convert_eo_to_lexic.h"
 } // extern "C"
 
-typedef enum flavour_idx_t {
+#include <omp.h>
+
+#define printf0 if(core.geom.get_myrank()==0) printf
+
+typedef enum flav_idx_t {
   UP = 0,
   DOWN
-} flavour_idx_t;
+} flav_idx_t;
 
 int main(int argc, char ** argv) {
   nyom::Core core(argc,argv);
+  
+  nyom::Stopwatch sw( core.geom.get_nyom_comm() );
 
-  int rank = core.geom.get_myrank();
+  const int rank = core.geom.get_myrank();
+  const int np = core.geom.get_Nranks();
 
-  int Nt = core.input_node["Nt"].as<int>();
-  int Ns = core.input_node["Nx"].as<int>();
-  int conf_start = core.input_node["conf_start"].as<int>();
-  int conf_stride = core.input_node["conf_stride"].as<int>();
-  int conf_end = core.input_node["conf_end"].as<int>();
+  const int Nt = core.input_node["Nt"].as<int>();
+  const int Ns = core.input_node["Nx"].as<int>();
+  const int conf_start = core.input_node["conf_start"].as<int>();
+  const int conf_stride = core.input_node["conf_stride"].as<int>();
+  const int conf_end = core.input_node["conf_end"].as<int>();
+
+  const int nyom_threads = core.input_node["threaded"].as<bool>() ? 2 : 1;
 
   const int Nd = 4;
   const int Nc = 3;
@@ -56,7 +75,15 @@ int main(int argc, char ** argv) {
   nyom::init_gammas( core.geom.get_world() );
 
   spinor ** temp_field = NULL;
-  init_solver_field(&temp_field,VOLUMEPLUSRAND,2);
+  init_solver_field(&temp_field,VOLUMEPLUSRAND,3);
+
+  spinor ** temp_eo_spinors = NULL;
+  init_solver_field(&temp_eo_spinors,VOLUME/2,2);
+
+  spinor * src_spinor = temp_field[2];
+  spinor * prop_inv = temp_field[0];
+  spinor * prop_fill = temp_field[1];
+  spinor * prop_tmp;
 
   // read propagators from file(s)? if yes, don't need to load gauge field
   bool read = false;
@@ -79,6 +106,18 @@ int main(int argc, char ** argv) {
   props.emplace_back(core);
   props.emplace_back(core);
 
+  nyom::SpinColourPropagator up(core);
+  nyom::SpinColourPropagator down(core);
+
+  sw.reset();
+  nyom::MomentumTensor mom_snk(core,
+                               {0, 0, 0});
+  sw.elapsed_print("Momentum tensor creation");
+
+  nyom::SpinPropagator C(core);
+
+  nyom::LeviCivita eps_abc(core, 3);
+
   for(int src_id = 0; src_id < 1; src_id++){
     int src_coords[4];
     
@@ -93,61 +132,91 @@ int main(int argc, char ** argv) {
               4,
               MPI_INT,
               0,
-              MPI_COMM_WORLD);
+              core.geom.get_nyom_comm());
 
     for(int flav_idx : {UP, DOWN} ){
       props[flav_idx].set_src_coords(src_coords);
       for(size_t src_d = 0; src_d < Nd; ++src_d){
         for(size_t src_c = 0; src_c < Nc; ++src_c){
-          if(read == false){
-            full_source_spinor_field_point(temp_field[1], src_d, src_c, src_coords); 
-            tmLQCD_invert((double*)temp_field[0],
-                          (double*)temp_field[1],
-                          flav_idx,
-                          0);
+          #pragma omp parallel num_threads(nyom_threads)
+          {
+            if( (nyom_threads == 1) ||
+                (nyom_threads != 1 && omp_get_thread_num() == 0) ){
+              printf0("Thread id %d of %d doing inversion\n", omp_get_thread_num(), omp_get_num_threads());
+              if(read == false){
+                full_source_spinor_field_point(src_spinor, src_d, src_c, src_coords); 
+                tmLQCD_invert((double*)prop_inv,
+                              (double*)src_spinor,
+                              flav_idx,
+                              0);
 
-            if(write){
-              convert_lexic_to_eo(g_spinor_field[0], g_spinor_field[1], temp_field[0]);
-              WRITER *writer = NULL;
-              char fname[200];
-              snprintf(fname,
-                       200,
-                       "source.conf%04d.flav%1d.srct%3d.srcx%3d.srcy%3d.srcz%3d.inverted",
-                       core.geom.tmlqcd_lat.nstore,
-                       flav_idx,
-                       src_coords[0],
-                       src_coords[1],
-                       src_coords[2],
-                       src_coords[3]);
-              construct_writer(&writer, fname, 1);
-              write_spinor(writer, &g_spinor_field[0], &g_spinor_field[1], 1, 64);
-              destruct_writer(writer);
+                if(write){
+                  convert_lexic_to_eo(temp_eo_spinors[0], temp_eo_spinors[1], prop_inv);
+                  WRITER *writer = NULL;
+                  char fname[200];
+                  snprintf(fname,
+                           200,
+                           "source.conf%04d.flav%1d.srct%3d.srcx%3d.srcy%3d.srcz%3d.inverted",
+                           core.geom.tmlqcd_lat.nstore,
+                           flav_idx,
+                           src_coords[0],
+                           src_coords[1],
+                           src_coords[2],
+                           src_coords[3]);
+                  construct_writer(&writer, fname, 1);
+                  write_spinor(writer, &temp_eo_spinors[0], &temp_eo_spinors[1], 1, 64);
+                  destruct_writer(writer);
+                }
+              
+              }else{
+                char fname[200];
+                snprintf(fname,
+                         200,
+                         "source.conf%04d.flav%1d.srct%3d.srcx%3d.srcy%3d.srcz%3d.inverted",
+                         core.geom.tmlqcd_lat.nstore,
+                         flav_idx,
+                         src_coords[0],
+                         src_coords[1],
+                         src_coords[2],
+                         src_coords[3]);
+                read_spinor(temp_eo_spinors[0],temp_eo_spinors[1], fname, (int)(src_d*Nc+src_c) );
+                convert_eo_to_lexic(prop_inv, temp_eo_spinors[0], temp_eo_spinors[1]);
+              }
+            }
+            
+            #pragma omp barrier
+            #pragma omp single
+            {
+              printf0("Thread %d switching pointers\n", omp_get_thread_num());
+              prop_tmp = prop_inv;
+              prop_inv = prop_fill;
+              prop_fill = prop_tmp;
             }
           
-          }else{
-            char fname[200];
-            snprintf(fname,
-                     200,
-                     "source.conf%04d.flav%1d.srct%3d.srcx%3d.srcy%3d.srcz%3d.inverted",
-                     core.geom.tmlqcd_lat.nstore,
-                     flav_idx,
-                     src_coords[0],
-                     src_coords[1],
-                     src_coords[2],
-                     src_coords[3]);
-            read_spinor(g_spinor_field[0],g_spinor_field[1],fname, (int)(src_d*Nc+src_c) );
-            convert_eo_to_lexic(temp_field[0],g_spinor_field[0],g_spinor_field[1]);
-          }
-          
-          props[flav_idx].fill(temp_field[0],
-                               src_d,
-                               src_c,
-                               core);
+            if( (nyom_threads == 1) || 
+                (nyom_threads != 1 && omp_get_thread_num() == 1) ){ 
+              printf0("Thread %d filling tensor\n", omp_get_thread_num());
+              props[flav_idx].fill(prop_fill,
+                                   src_d,
+                                   src_c);
+            }
+          } // OpenMP parallel closing brace
         }
       }
     }
-  }
+    
+    sw.reset();
+    up["tijab"] = mom_snk["XYZ"] * props[UP]["tXYZijab"];
+    down["tijab"] = mom_snk["XYZ"] * props[DOWN]["tXYZijab"];
+    sw.elapsed_print_and_reset("Sink momentum projection");
 
-  finalize_solver(temp_field,2);
+    C["tij"] = eps_abc["CDE"] * eps_abc["FGH"] * nyom::g["5"]["IJ"] * nyom::g["5"]["KL"] *
+               up["tijCF"] * up["tIKDG"] * down["tJLGH"];
+    sw.elapsed_print_and_reset("Spin-colour contraction");
+
+  } // loop over sources
+
+  finalize_solver(temp_field,3);
+  finalize_solver(temp_eo_spinors,2);
   return 0;
 }
