@@ -27,6 +27,7 @@
 #include <chrono>
 #include <random>
 #include <iomanip>
+#include <complex>
 
 #include "gammas.hpp"
 
@@ -117,6 +118,8 @@ int main(int argc, char ** argv) {
   nyom::SpinPropagator C(core);
 
   nyom::LeviCivita eps_abc(core, 3);
+
+  double norm = 1.0/((double)Ns*Ns*Ns); 
 
   for(int src_id = 0; src_id < 1; src_id++){
     int src_coords[4];
@@ -209,11 +212,38 @@ int main(int argc, char ** argv) {
     up["tijab"] = mom_snk["XYZ"] * props[UP]["tXYZijab"];
     down["tijab"] = mom_snk["XYZ"] * props[DOWN]["tXYZijab"];
     sw.elapsed_print_and_reset("Sink momentum projection");
+   
+    for( std::string g_src : { "C5", "C05" } ){
+      for( std::string g_snk : { "C5", "C05" } ){ 
+        // note index convention for Spin propagator
+        C["jit"] = eps_abc["CDE"] * eps_abc["FGH"] * nyom::g[g_snk]["IJ"] * nyom::g[g_src]["KL"] *
+                   up["tijCF"] * up["tIKDG"] * down["tJLGH"];
+        sw.elapsed_print_and_reset("Spin-colour contraction");
 
-    C["tij"] = eps_abc["CDE"] * eps_abc["FGH"] * nyom::g["5"]["IJ"] * nyom::g["5"]["KL"] *
-               up["tijCF"] * up["tIKDG"] * down["tJLGH"];
-    sw.elapsed_print_and_reset("Spin-colour contraction");
-
+        std::complex<double>* correl_values;
+        int64_t correl_nval;
+        C.tensor.read_all(&correl_nval, &correl_values);
+        if(rank == 0){
+          std::vector<int> idx_coords(3, 0);
+          ofstream correl; 
+          char fname[200]; 
+          snprintf(fname, 200,
+                   "baryon_2pt_conf%05d_srcidx%03d_srct%03d_srcx%03d_srcy%03d_srcz%03d_snkG%s_srcG%s.txt",
+                   core.geom.tmlqcd_lat.nstore, src_id,
+                   src_coords[0], src_coords[1], src_coords[2], src_coords[3],
+                   g_snk.c_str(), g_src.c_str());
+          correl.open(fname);
+          for(int64_t i = 0; i < correl_nval; ++i){
+            C.get_idx_coords(idx_coords, i);
+            correl << idx_coords[2] << " " << idx_coords[1] << " " << idx_coords[0] << "\t" <<
+              std::setprecision(16) << norm*correl_values[i].real() << "\t" << 
+              std::setprecision(16) << norm*correl_values[i].imag() << 
+              endl;
+          }
+          correl.close();
+        }
+      } // loop over g_snk
+    } // loop over g_src
   } // loop over sources
 
   finalize_solver(temp_field,3);
