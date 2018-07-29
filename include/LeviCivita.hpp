@@ -56,29 +56,54 @@ private:
   {
     std::stringstream name;
     name << "LeviCivita" << ndim << "d";
+    // technically, it should be possible to exploit CTFs AS tensor shape, but
+    // it doesn't seem to work... We thus use NS
     std::vector<int> shapes( ndim, NS );
     std::vector<int> sizes( ndim, ndim );
     tensor = CTF::Tensor< complex<double> >(ndim, sizes.data(), shapes.data(), core.geom.get_world(), name.str().c_str() );
 
-    //if( core.geom.get_myrank() == 0 ){
-    //  int64_t* indices;
-    //  complex<double>* values;
-    //  int64_t nval;
-    //  tensor.read_all(&nval, &indices, &values);
+    // for each local index, we will need to compute the tensor coordinates below
+    std::vector<int> idx_coords(ndim, 0);
 
-
-    //  free(values);
-    //  free(indices);
-    //}
-   
-    int index = 0;
-    int offset = ndim; 
-    complex<double> one = complex<double>(1.0, 0.0);
+    // we implement the n-dimensional LeviCivita symbol as
+    // \eps_{i_1,i_2,...,i_d} = (-1)^d \prod_{i_j > i_i} (i_i - i_j)
+    int sign = -1;
     for( int d = 1; d < ndim; ++d ){
-      index += d*offset;
-      offset *= ndim;
+      sign *= -1;
     }
-    tensor.write((int64_t)1, (const int64_t*)&index, (const complex<double>*)&one); 
+    
+    int64_t* indices;
+    complex<double>* values;
+    int64_t nval;
+    tensor.read_local(&nval, &indices, &values);
+    for( int i = 0; i < nval; ++i ){
+      int idx = indices[i];
+      for( int d = 0; d < ndim; ++d ){
+        idx_coords[d] = idx % ndim;
+        idx /= ndim;
+      }
+      int p = sign;
+      for( int i1 = 0; i1 < ndim; ++i1 ){
+        for( int i2 = i1+1; i2 < ndim; ++i2 ){
+          p *= ( idx_coords[i1] - idx_coords[i2] );
+        }
+      }
+      // when the product is zero, at least two indices coincide and the LeviCivita is zero
+      values[i] = p;
+      if( p != 0 ){
+        values[i] = p > 0 ? 1 : -1;
+      }
+    }
+    tensor.write(nval, indices, values);
+
+    // one some architectures it may be faster to keep the LeviCivita sparse
+    if( core.input_node["sparse_LeviCivita"].as<bool>() ){
+      tensor.sparsify();
+    }
+
+    free(values);
+    free(indices);
+
   }
 };
 
