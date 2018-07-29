@@ -35,11 +35,13 @@ std::map < std::string, CTF::Tensor< std::complex<double> > > g;
 std::vector < std::string > i_g;
 
 void init_gammas(CTF::World& dw){
-  for( std::string g1 : { "I", "0", "1", "2", "3", "5" } ){
+  for( std::string g1 : { "I", "iI", "0", "1", "2", "3", "5" } ){
     i_g.push_back(g1);
   }
   
   g["I"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gI");
+  // imaginary unit
+  g["iI"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gI");
   g["0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "g0");
   g["1"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "g1");
   g["2"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "g2");
@@ -49,6 +51,7 @@ void init_gammas(CTF::World& dw){
   g["Ip5"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIp5");
   g["Ip0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIp0");
   g["Im0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIm0");
+  g["C"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gC");
 
   for( std::string g1 : { "0", "1", "2", "3", "5" } ){
     for( std::string g2 : { "0", "1", "2", "3", "5" } ){
@@ -76,6 +79,13 @@ void init_gammas(CTF::World& dw){
     if( idx[i]%4==idx[i]/4 ) pairs[i] = std::complex<double>(1,0);
   }
   g["I"].write(npair,idx,pairs); 
+  free(idx); free(pairs); 
+  
+  g["iI"].read_local(&npair,&idx,&pairs);
+  for(int64_t i = 0; i < npair; ++i){
+    if( idx[i]%4==idx[i]/4 ) pairs[i] = std::complex<double>(0,-1);
+  }
+  g["iI"].write(npair,idx,pairs); 
   free(idx); free(pairs); 
 
   g["0"].read_local(&npair,&idx,&pairs);
@@ -122,6 +132,25 @@ void init_gammas(CTF::World& dw){
     }
   }
 
+  // charge conjugation
+  // no support for complex number scaling during contraction...
+  g["C"]["ab"] = g["iI"]["aI"] * g["0"]["IJ"] * g["2"]["Jb"];
+
+  // and products with that
+  for( std::string g1 : { "0", "1", "2", "3", "5", "05" } ){
+    std::string name = std::string("C") + g1;
+    i_g.push_back(name);
+    g[name] = CTF::Tensor<std::complex<double> >
+      (2, 
+       gamma_sizes, 
+       gamma_shapes, 
+       dw, 
+       name.c_str()
+      );
+    g[name]["ab"] = g["C"]["aI"] * g[g1]["Ib"];
+  }
+
+  // parity and handedness projectors
   g["Im5"]["ab"] = 0.5*( (g["I"])["ab"] - (g["5"])["ab"] ); 
   g["Ip5"]["ab"] = 0.5*( (g["I"])["ab"] + (g["5"])["ab"] ); 
   g["Im0"]["ab"] = 0.5*( (g["I"])["ab"] - (g["0"])["ab"] );
