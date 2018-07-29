@@ -119,6 +119,9 @@ public:
         }
       }
     }
+    // it is not at all guaranteed that this will always work due to possible padding
+    // techically, we should allocate a temporary buffer and extract the components from
+    // the struct
     tensor.write(counter, indices.data(), reinterpret_cast<const complex<double>*>(&propagator[0]) );
     sw.elapsed_print("PointSourcePropagator fill");
   }
@@ -132,14 +135,17 @@ public:
 
   CTF::Tensor< complex<double> > tensor;
   int src_coords[4];
+  int sizes[8];
+  int shapes[8];
 
 private:
   const nyom::Core & core;
 
   void init()
   {
-    int shapes[8] = {NS, NS, NS, NS, NS, NS, NS, NS};
-    int sizes[8];
+    for( int i = 0; i < 8; ++i ){
+      shapes[i] = NS;
+    }
     sizes[PSP_DIM_T_SNK] = core.input_node["Nt"].as<int>();
     sizes[PSP_DIM_X_SNK] = core.input_node["Nx"].as<int>();
     sizes[PSP_DIM_Y_SNK] = core.input_node["Ny"].as<int>();
