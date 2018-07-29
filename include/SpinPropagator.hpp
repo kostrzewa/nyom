@@ -33,11 +33,12 @@
 namespace nyom {
 
 // this enum controls the ordering of the dimensions of the SpinPropagator tensor
-// Ther ordering can be adjusted at will by simply adjusting the ordering here
+// The ordering can be adjusted at will by simply adjusting the ordering here
+// For convenience, we want the source Dirac index to run fastest and T to run slowest
 typedef enum SpinPropagator_dims_t {
-  SP_DIM_T_SNK = 0,
+  SP_DIM_D_SRC = 0,
   SP_DIM_D_SNK,
-  SP_DIM_D_SRC,
+  SP_DIM_T_SNK
 } SpinPropagator_dims_t;
 
 class SpinPropagator
@@ -60,6 +61,16 @@ public:
     src_coords[3] = src_coords_in[3];
   }
 
+  void get_idx_coords(std::vector<int> & idx_coords, int64_t idx){
+    if( idx_coords.size() != 3 ){
+      idx_coords.resize(3);
+    }
+    for(int i = 0; i < 3; ++i){
+      idx_coords[i] = idx % sizes[i];
+      idx /= sizes[i];
+    }
+  }
+
   // by overloading the square bracket operator, we can give convenient access to the underlying
   // tensor
   CTF::Idx_Tensor operator[](const char * idx_map)
@@ -69,14 +80,17 @@ public:
 
   CTF::Tensor< complex<double> > tensor;
   int src_coords[4];
+  int shapes[3];
+  int sizes[3];
 
 private:
   const nyom::Core & core;
 
   void init()
   {
-    int shapes[3] = {NS, NS, NS};
-    int sizes[3];
+    for(int i = 0; i < 3; ++i ){
+      shapes[i] = NS;
+    }
     sizes[SP_DIM_T_SNK] = core.input_node["Nt"].as<int>();
     sizes[SP_DIM_D_SNK] = 4;
     sizes[SP_DIM_D_SRC] = 4;
