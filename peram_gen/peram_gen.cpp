@@ -146,8 +146,6 @@ int main(int argc, char ** argv){
 
           CTF::Tensor<complex<double>> src_dof(3, src_dof_sizes, src_dof_shapes, core.geom.get_world(), "src_dof");
           src_dof["edt"] = one_esrc["e"] * one_dsrc["d"] * one_tsrc["t"];
-          // sparsification seems to hurt performance for some reason...
-          // src_dof.sparsify();
 
           // reshape source to tmLQCD format into correct source Dirac index
           src.push(source,
