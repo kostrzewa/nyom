@@ -70,8 +70,6 @@ public:
     const double py_pi_ov_two_Ny = 0.5*momenta[1]*nyom::pi/Ny;
     const double pz_pi_ov_two_Nz = 0.5*momenta[2]*nyom::pi/Nz;
 
-    const complex<double> imag_unit = complex<double>(0.0, 1.0);
-
     complex<double> *values;
     int64_t *indices;
     int64_t nval;
@@ -81,7 +79,7 @@ public:
       int64_t x = indices[idx] % Nx;
       int64_t y = (indices[idx] / Nx) % Ny;
       int64_t z = indices[idx] / Nx / Nz;
-      values[idx] = exp(- imag_unit * ( x * px_pi_ov_two_Nx +
+      values[idx] = exp(- nyom::imag_unit * ( x * px_pi_ov_two_Nx +
                                         y * py_pi_ov_two_Ny +
                                         z * pz_pi_ov_two_Nz)
                        );
