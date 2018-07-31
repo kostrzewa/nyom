@@ -19,10 +19,91 @@
 
 #pragma once
 
+#include "Core.hpp"
+
 #include <ctf.hpp>
 #include <vector>
+#include <sstream>
 
 namespace nyom {
+
+class SimpleShift
+{
+public:
+  SimpleShift() = delete;
+
+  SimpleShift(const nyom::Core &core_in,
+              const int dim_size_in):
+    core(core_in), dim_size(dim_size_in)
+  {
+    init();
+  }
+
+  SimpleShift(const nyom::Core &core_in,
+              const int dim_size_in,
+              const int shift_in):
+    SimpleShift(core_in, dim_size_in)
+  {
+    set_shift(shift_in);
+  }
+
+  void set_shift(const int shift_in){
+    shift = shift_in;
+    
+    int64_t nval;
+    int64_t* indices;
+    complex<double>* values;
+    tensor.read_local(&nval, &indices, &values);
+    for(int64_t i = 0; i < nval; ++i ){
+      // In Fortran fashion, the row-index runs fastest as anywhere in CTF
+      int64_t c = indices[i] / dim_size;
+      int64_t r = indices[i] % dim_size;
+      // the resulting matrix has non-zero entries such that the translation
+      //
+      //  x'_i = M_ij x_j
+      //
+      //  results in 
+      //
+      //  x'_i = x_i + shift
+      //
+      // respecting periodic boundary conditions
+      if( r == ( ((c+shift)+dim_size) % dim_size) ){
+        values[i] = 1.0;
+      } else {
+        values[i] = 0.0;
+      }
+    }
+    tensor.write(nval, indices, values);
+    free(values); free(indices);
+    tensor.sparsify();
+  }
+
+  CTF::Idx_Tensor operator[](const char * idx_map)
+  {
+    return tensor[idx_map];
+  }
+
+  CTF::Tensor< complex<double> > tensor;
+
+private:
+  const nyom::Core & core;
+  const int dim_size;
+
+  int shapes[2];
+  int sizes[2];
+  int shift;
+
+  void init()
+  {
+    for(int d = 0; d < 2; ++d){
+      shapes[d] = NS;
+      sizes[d] = dim_size;
+    }
+    std::stringstream name;
+    name << "SimpleShift" << dim_size;
+    tensor = CTF::Tensor< complex<double> >(2, sizes, shapes, core.geom.get_world(), name.str().c_str() );
+  }
+};
 
   typedef enum shift_dimension_t {
     xm1 = 0,
@@ -72,27 +153,27 @@ namespace nyom {
     // for each direction (-+x , -+y, -+z), construct the shift
     // matrix (for shifts by a single lattice site)
     for( int dir : {0, 1, 2, 3, 4, 5} ){
-      int64_t npair;
+      int64_t nval;
       int64_t* indices;
-      complex<double>* pairs;
+      complex<double>* values;
       int dim = dir / 2;
       int offset = 1;
       if( dir % 2 == 0 ) offset = -1;
-      shifts[dir].read_local(&npair, &indices, &pairs);
-      for(int64_t i = 0; i < npair; ++i ){
+      shifts[dir].read_local(&nval, &indices, &values);
+      for(int64_t i = 0; i < nval; ++i ){
         // In Fortran fashion, the row-index runs fastest as anywhere in CTF
         int64_t c = indices[i] / dim_sizes[dim];
         int64_t r = indices[i] % dim_sizes[dim];
         // the resulting matrix has non-zero entries on the first upper or lower
         // off-diagonal plus entries which implement periodic boundary conditions
         if( c == ( ((r+offset)+dim_sizes[dim]) % dim_sizes[dim]) ){
-          pairs[i] = 1.0;
+          values[i] = 1.0;
         } else {
-          pairs[i] = 0.0;
+          values[i] = 0.0;
         }
       }
-      shifts[dir].write(npair, indices, pairs);
-      free(pairs); free(indices);
+      shifts[dir].write(nval, indices, values);
+      free(values); free(indices);
       shifts[dir].sparsify(); 
     }
     return( shifts );
