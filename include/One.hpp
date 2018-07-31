@@ -35,7 +35,9 @@ typedef CTF::Tensor< complex<double> > TriOne;
  * @param idx_nonzero Non-zero entry of the basis vector
  * @param world
  *
- * @return rank one sparse tensor with a single non-zero element
+ * @return rank one tensor with a single non-zero element
+ * not returning a sparse tensor because sparse * dense seems to be
+ * broken
  */
 nyom::One make_One(const int Nidx,
                    const int idx_nonzero,
@@ -47,7 +49,6 @@ nyom::One make_One(const int Nidx,
   const complex<double> entry = 1.0;
   const int64_t idx = idx_nonzero;
   ret.write((int64_t)1, &idx, &entry);
-  ret.sparsify();
   return ret;
 }
 
@@ -62,7 +63,6 @@ nyom::BiOne make_BiOne(const int Nidx,
   int64_t gbl_idx = idx_nonzero*Nidx + idx_nonzero;
   complex<double> entry = 1.0;
   ret.write((int64_t)1, &gbl_idx, &entry);
-  ret.sparsify();
   return ret;
 }
 
@@ -78,7 +78,6 @@ nyom::TriOne make_TriOne(const int Nidx,
   int64_t gbl_idx = idx_nonzero*Nidx*Nidx + idx_nonzero*Nidx + idx_nonzero;
   complex<double> entry = 1.0;
   ret.write((int64_t)1, &gbl_idx, &entry);
-  ret.sparsify();
   return ret;
 }
 

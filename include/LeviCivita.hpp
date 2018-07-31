@@ -95,15 +95,8 @@ private:
       }
     }
     tensor.write(nval, indices, values);
-
-    // one some architectures it may be faster to keep the LeviCivita sparse
-    if( core.input_node["sparse_LeviCivita"].as<bool>() ){
-      tensor.sparsify();
-    }
-
     free(values);
     free(indices);
-
   }
 };
 

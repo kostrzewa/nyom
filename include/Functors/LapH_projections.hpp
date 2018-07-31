@@ -195,7 +195,7 @@ public:
     src_proj_sparse = CTF::Tensor<complex<double>>(2, src_sizes, src_shapes, core.geom.get_world(), "src_proj");
     src_proj["et"] = one_esrc["e"] * one_tsrc["t"];
     src_proj_sparse["et"] = src_proj["et"];
-    src_proj_sparse.sparsify();
+    src_proj_sparse.sparsify(); // Note: this is probably broken because sparse*dense leads to (silent) errors...
 
     MPI_Barrier( core.geom.get_nyom_comm() );
   }
