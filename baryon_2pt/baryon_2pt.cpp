@@ -300,12 +300,13 @@ int main(int argc, char ** argv) {
                      g1_src.c_str(),
                      g2_src.c_str());
             correl.open(fname);
+            correl << "t_snk d_snk d_src re im" << std::endl;
             for(int64_t i = 0; i < correl_nval; ++i){
               C.get_idx_coords(idx_coords, i);
               correl << idx_coords[2] << " " << idx_coords[1] << " " << idx_coords[0] << "\t" <<
                 std::setprecision(16) << norm*correl_values[i].real() << "\t" << 
                 std::setprecision(16) << norm*correl_values[i].imag() << 
-                endl;
+                std::endl;
             }
             correl.close();
           }
@@ -327,12 +328,13 @@ int main(int argc, char ** argv) {
                      g1_src.c_str(),
                      g2_src.c_str());
             correl.open(fname);
+            correl << "t_snk d_snk d_src re im" << std::endl;
             for(int64_t i = 0; i < correl_nval; ++i){
               C.get_idx_coords(idx_coords, i);
               correl << idx_coords[2] << " " << idx_coords[1] << " " << idx_coords[0] << "\t" <<
                 std::setprecision(16) << norm*correl_values[i].real() << "\t" << 
                 std::setprecision(16) << norm*correl_values[i].imag() << 
-                endl;
+                std::endl;
             }
             correl.close();
           }
