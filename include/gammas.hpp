@@ -57,6 +57,8 @@ void init_gammas(CTF::World& dw){
   g["Ip5"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIp5");
   g["Ip0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIp0");
   g["Im0"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gIm0");
+  g["TwistPlus"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gTwistPlus");
+  g["TwistMinus"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gTwistMinus");
   g["C"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gC");
 
   g0_sign["I"] = 1.0;
@@ -177,10 +179,14 @@ void init_gammas(CTF::World& dw){
 
   // parity and handedness projectors
   // here we don't do any signs
-  g["Im5"]["ab"] = 1.0/sqrt(2.0)*( (g["I"])["ab"] - (g["5"])["ab"] ); 
-  g["Ip5"]["ab"] = 1.0/sqrt(2.0)*( (g["I"])["ab"] + (g["5"])["ab"] ); 
-  g["Im0"]["ab"] = 1.0/sqrt(2.0)*( (g["I"])["ab"] - (g["0"])["ab"] );
-  g["Ip0"]["ab"] = 1.0/sqrt(2.0)*( (g["I"])["ab"] + (g["0"])["ab"] ); 
+  g["Im5"]["ab"] = (1.0/sqrt(2.0)) * ( (g["I"])["ab"] - (g["5"])["ab"] ); 
+  g["Ip5"]["ab"] = (1.0/sqrt(2.0)) * ( (g["I"])["ab"] + (g["5"])["ab"] ); 
+  g["Im0"]["ab"] = (1.0/sqrt(2.0)) * ( (g["I"])["ab"] - (g["0"])["ab"] );
+  g["Ip0"]["ab"] = (1.0/sqrt(2.0)) * ( (g["I"])["ab"] + (g["0"])["ab"] ); 
+
+  // \omega = \pi / 2  twist rotations
+  g["TwistPlus"]["ab"] = (1.0/sqrt(2.0)) * ( (g["I"])["ab"] + ( (g["iI"])["aK"] * (g["5"])["Kb"] ) );
+  g["TwistMinus"]["ab"] = (1.0/sqrt(2.0)) * ( (g["I"])["ab"] - ( (g["iI"])["aK"] * (g["5"])["Kb"] ) );
 }
 
 } // namespace nyom
