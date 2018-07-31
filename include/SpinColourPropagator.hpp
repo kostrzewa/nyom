@@ -74,11 +74,14 @@ public:
 
 private:
   const nyom::Core & core;
+  int shapes[5];
+  int sizes[5];
 
   void init()
   {
-    int shapes[5] = {NS, NS, NS, NS, NS};
-    int sizes[5];
+    for(int d = 0; d < 5; ++d){
+      shapes[d] = NS;
+    }
     sizes[SCP_DIM_T_SNK] = core.input_node["Nt"].as<int>();
     sizes[SCP_DIM_D_SNK] = 4;
     sizes[SCP_DIM_D_SRC] = 4;
