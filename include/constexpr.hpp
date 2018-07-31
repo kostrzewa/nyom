@@ -19,6 +19,9 @@
 
 #pragma once
 
+#include <complex>
+
 namespace nyom {
   constexpr double pi = 3.14159265358979323846;
+  constexpr complex<double> imag_unit = std::complex<double>(0.0, 1.0);
 };
