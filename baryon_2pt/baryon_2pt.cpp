@@ -30,12 +30,14 @@
 #include <complex>
 
 #include "gammas.hpp"
+#include "constexpr.hpp"
 
 #include "PointSourcePropagator.hpp"
 #include "SpinColourPropagator.hpp"
 #include "SpinPropagator.hpp"
 #include "MomentumTensor.hpp"
 #include "LeviCivita.hpp"
+#include "Shifts.hpp"
 
 extern "C" {
 #include "global.h"
@@ -68,6 +70,8 @@ int main(int argc, char ** argv) {
   const int conf_stride = core.input_node["conf_stride"].as<int>();
   const int conf_end = core.input_node["conf_end"].as<int>();
 
+  const int n_src_per_gauge = core.input_node["n_src_per_gauge"].as<int>();
+
   const int nyom_threads = core.input_node["threaded"].as<bool>() ? 2 : 1;
 
   const int Nd = 4;
@@ -91,7 +95,7 @@ int main(int argc, char ** argv) {
   bool write = false;
   
   std::random_device r;
-  std::mt19937 mt_gen(12345);
+  std::mt19937 mt_gen(conf_start+12345);
 
   // uniform distribution in space coordinates
   std::uniform_int_distribution<int> ran_space_idx(0, Ns-1);
@@ -114,9 +118,11 @@ int main(int argc, char ** argv) {
   sw.elapsed_print("Momentum tensor creation");
 
   nyom::SpinPropagator C(core);
+  nyom::SpinPropagator C_translated(core);
 
   nyom::LeviCivita eps_abc(core, 3);
 
+  // this can be elevated to include the source phase factor at some point
   double norm = 1.0/((double)Ns*Ns*Ns); 
 
   for( int conf_idx = conf_start; conf_idx <= conf_end; conf_idx += conf_stride ){
@@ -126,7 +132,7 @@ int main(int argc, char ** argv) {
       tmLQCD_read_gauge( conf_idx ); 
     }
 
-    for(int src_id = 0; src_id < 1; src_id++){
+    for(int src_id = 0; src_id < n_src_per_gauge; src_id++){
       int src_coords[4];
       
       // for certainty, we broadcast the source coordinates from rank 0 
@@ -141,6 +147,13 @@ int main(int argc, char ** argv) {
                 MPI_INT,
                 0,
                 core.geom.get_nyom_comm());
+      
+      // we will time translate the correlator such that the indices are always
+      // relative to the source
+      // we also undo the twisted temporal boundary conditions on the quark
+      // fields (beware ifnaive anti-periodic boundary conditions are used in
+      // the inversion instead)
+      nyom::SimpleShift time_translation(core, Nt, -src_coords[0], 3*nyom::pi/Nt);
 
       for(int flav_idx : {UP, DOWN} ){
         props[flav_idx].set_src_coords(src_coords);
@@ -217,26 +230,33 @@ int main(int argc, char ** argv) {
 
       // first we do the momentum projections, allowing us to work with
       // small tensors below
-      down_mom["tijab"] = mom_snk["XYZ"] * props[DOWN]["tXYZKLab"];
-      sw.elapsed_print_and_reset("down prop mom projection");
-      
-      up_mom["tijab"] = mom_snk["XYZ"] * props[UP]["tXYZKLab"];
+      up_mom["tijab"] = mom_snk["XYZ"] * props[UP]["tXYZijab"];
       sw.elapsed_print_and_reset("up prop mom projection");
 
-      up["tijab"] = nyom::g["Ip5"]["iK"] * up_mom["tKLab"] * nyom::g["Ip5"]["Lj"];
+      down_mom["tijab"] = mom_snk["XYZ"] * props[DOWN]["tXYZijab"];
+      sw.elapsed_print_and_reset("down prop mom projection");
+
+      up["tijab"] = nyom::g["TwistPlus"]["iK"] * up_mom["tKLab"] * nyom::g["TwistPlus"]["Lj"];
       sw.elapsed_print_and_reset("up twist rotation");
 
-      down["tijab"] = nyom::g["Im5"]["iK"] * down_mom["tKLab"] * nyom::g["Im5"]["Lj"];
+      down["tijab"] = nyom::g["TwistMinus"]["iK"] * down_mom["tKLab"] * nyom::g["TwistMinus"]["Lj"];
       sw.elapsed_print_and_reset("down twist rotation");
     
-      // we build a 3x3 correlator matrix for the proton two-point function
-      // with 
-      // \Gamma = C\gamma_5           , \tilde{\Gamma} = 1
-      // \Gamma = C                   , \tilde{\Gamma} = \gamma_5
-      // \Gamma = Ci\gamma_0\gamma_5  , \tilde{\Gamma} = 1
-      // \Gamma = C\gamma_0           , \tilde{\Gamma} = \gamma_5
+      // we build a 4x4 correlator matrix for the proton two-point function
+      // where we have \Gamma_1 in the dipole and \Gamma_2 multiplying the
+      // third quark field in the following combinations
+      //
+      // \Gamma_1 = C\gamma_5           , \Gamma_2 = 1
+      // \Gamma_1 = C                   , \Gamma_2 = \gamma_5
+      // \Gamma_1 = Ci\gamma_0\gamma_5  , \Gamma_2 = 1
+      // \Gamma_1 = C\gamma_0           , \Gamma_2 = \gamma_5
+      //
+      // Note that at the source we use the identity
+      //
+      // \gamma_0 \Gamma_i^\dagger \gamma_0 = (sign_\Gamma_i) \Gamma_i
+      //
+      // where (sign_\Gamma_i) is simply 1 or -1 and encoded in g0_sign below
       
-      // note that below, \Gamma == g1, \tilde{\Gamma} = g2
       for( std::string g1_src : { "C", "C5", "Ci05", "C0" } ){
         std::string g2_src = "I";
         if( g1_src == std::string("C") || g1_src == std::string("C0") ){
@@ -248,18 +268,22 @@ int main(int argc, char ** argv) {
             g2_snk = std::string("5");
           }
           // note index convention for Spin propagator
+          // TODO: turn this into an AutoTunable and test different
+          // ways of performing the contraction
           C["jit"] = nyom::g0_sign[g1_src] * nyom::g0_sign[g2_src] *
-                   // ^ signs on source gamma structures due to gamma_0 insertions 
                      eps_abc["ABC"] * eps_abc["EFG"] * 
                      nyom::g[g1_snk]["IJ"] * nyom::g[g2_snk]["iK"] *
                      nyom::g[g1_src]["LM"] * nyom::g[g2_src]["Nj"] *
                      ( up["tIMAE"] * up["tKNCG"] - up["tINAG"] * up["tKMCE"] ) *
                      down["tJLBF"];
-          
           sw.elapsed_print_and_reset("Spin-colour contraction");
+
+          C_translated["jit"] = time_translation["tT"] * C["jiT"];
+          sw.elapsed_print_and_reset("Time translation");
 
           std::complex<double>* correl_values;
           int64_t correl_nval;
+
           C.tensor.read_all(&correl_nval, &correl_values);
           if(rank == 0){
             std::vector<int> idx_coords(3, 0);
@@ -285,6 +309,35 @@ int main(int argc, char ** argv) {
             }
             correl.close();
           }
+          free(correl_values);
+
+          C_translated.tensor.read_all(&correl_nval, &correl_values);
+          if(rank == 0){
+            std::vector<int> idx_coords(3, 0);
+            ofstream correl; 
+            char fname[200]; 
+            snprintf(fname, 200,
+                     "translated_baryon_2pt_conf%05d_srcidx%03d"
+                     "_srct%03d_srcx%03d_srcy%03d_srcz%03d_"
+                     "snkG1-%s_snkG2-%s_srcG1-%s_srcG2-%s.txt",
+                     conf_idx, src_id,
+                     src_coords[0], src_coords[1], src_coords[2], src_coords[3],
+                     g1_snk.c_str(),
+                     g2_snk.c_str(),
+                     g1_src.c_str(),
+                     g2_src.c_str());
+            correl.open(fname);
+            for(int64_t i = 0; i < correl_nval; ++i){
+              C.get_idx_coords(idx_coords, i);
+              correl << idx_coords[2] << " " << idx_coords[1] << " " << idx_coords[0] << "\t" <<
+                std::setprecision(16) << norm*correl_values[i].real() << "\t" << 
+                std::setprecision(16) << norm*correl_values[i].imag() << 
+                endl;
+            }
+            correl.close();
+          }
+          free(correl_values);
+
         } // loop over g1_snk
       } // loop over g1_src
     } // loop over sources
