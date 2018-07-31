@@ -33,23 +33,19 @@ public:
   SimpleShift() = delete;
 
   SimpleShift(const nyom::Core &core_in,
-              const int dim_size_in):
+              const int dim_size_in,
+              const int shift_in = 0,
+              const complex<double> phase_angle_in = 0.0):
     core(core_in), dim_size(dim_size_in)
   {
     init();
+    set_shift(shift_in, phase_angle_in);
   }
 
-  SimpleShift(const nyom::Core &core_in,
-              const int dim_size_in,
-              const int shift_in):
-    SimpleShift(core_in, dim_size_in)
-  {
-    set_shift(shift_in);
-  }
-
-  void set_shift(const int shift_in){
+  void set_shift(const int shift_in, const complex<double> phase_angle_in = 0.0){
     shift = shift_in;
-    
+    phase_angle = phase_angle_in;
+   
     int64_t nval;
     int64_t* indices;
     complex<double>* values;
@@ -67,15 +63,17 @@ public:
       //  x'_i = x_i + shift
       //
       // respecting periodic boundary conditions
+      //
+      // via phase_angle, we also directly apply a possible phase factor which might be
+      // necessary when working with twisted boundary conditions, for example
       if( r == ( ((c+shift)+dim_size) % dim_size) ){
-        values[i] = 1.0;
+        values[i] = std::exp( nyom::imag_unit*phase_angle*static_cast<double>(r) );
       } else {
         values[i] = 0.0;
       }
     }
     tensor.write(nval, indices, values);
     free(values); free(indices);
-    tensor.sparsify();
   }
 
   CTF::Idx_Tensor operator[](const char * idx_map)
@@ -92,6 +90,7 @@ private:
   int shapes[2];
   int sizes[2];
   int shift;
+  complex<double> phase_angle;
 
   void init()
   {
@@ -174,7 +173,6 @@ private:
       }
       shifts[dir].write(nval, indices, values);
       free(values); free(indices);
-      shifts[dir].sparsify(); 
     }
     return( shifts );
   }
