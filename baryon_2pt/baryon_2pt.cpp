@@ -312,10 +312,10 @@ int main(int argc, char ** argv) {
           q3["txyzljag"] = nyom::g0_sign[g2_src] * up["txyzlQag"] * nyom::g[g2_src]["Qj"];
           sw.elapsed_print_and_reset("second term q3 construction");
           
-          q1["txyzipce"] = nyom::g[g2_snk]["iN"] * up["tNpce"];
+          q1["txyzipce"] = nyom::g[g2_snk]["iN"] * up["txyzNpce"];
           sw.elapsed_print_and_reset("second term q1 construction");
 
-          q2["txyzlpbf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["lM"] * nyom::g[g1_src]["Op"] * down["tMObf"];
+          q2["txyzlpbf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["lM"] * nyom::g[g1_src]["Op"] * down["txyzMObf"];
           sw.elapsed_print_and_reset("second term q2 construction");
 
           C["jit"] -= eps_abc["ABC"] * eps_abc["EFG"] * mom_snk["XYZ"] *
