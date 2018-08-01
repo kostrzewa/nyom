@@ -32,6 +32,7 @@
 #include "gammas.hpp"
 #include "constexpr.hpp"
 
+#include "NucleonIntermediate.hpp"
 #include "PointSourcePropagator.hpp"
 #include "SpinColourPropagator.hpp"
 #include "ColourDipolePropagator.hpp"
@@ -114,8 +115,9 @@ int main(int argc, char ** argv) {
   nyom::PointSourcePropagator q2(core);
   nyom::PointSourcePropagator q3(core);
 
-  nyom::ColourDipolePropagator colour_dipole(core);
-
+  nyom::NucleonIntermediateSpinColour nsc(core);
+  nyom::NucleonIntermediateSpinColour nsc2(core);
+  nyom::NucleonIntermediateColour nc(core);
 
   sw.reset();
   nyom::MomentumTensor mom_snk(core,
@@ -268,12 +270,11 @@ int main(int argc, char ** argv) {
 
           // This is the "direct" baryon contraction
           //
-          //  C["jit"] = nyom::g0_sign[g1_src] * nyom::g0_sign[g2_src] *
-          //             eps_abc["ABC"] * eps_abc["EFG"] * 
-          //             nyom::g[g1_snk]["LM"] * nyom::g[g2_snk]["iN"] *
-          //             nyom::g[g1_src]["OP"] * nyom::g[g2_src]["Qj"] *
-          //             mom_snk["XYZ"] *
-          //             up["tXYZLPAE"] * up["tXYZNQCG"] * down["tXYZMOBF"];
+          // Cfull["txyzij"] = nyom::g0_sign[g1_src] * nyom::g0_sign[g2_src] *
+          //                   eps_abc["ABC"] * eps_abc["EFG"] * 
+          //                   nyom::g[g1_snk]["LM"] * nyom::g[g2_snk]["iN"] *
+          //                   nyom::g[g1_src]["OP"] * nyom::g[g2_src]["Qj"] *
+          //                   up["txyzLPAE"] * up["txyzNQCG"] * down["txyzMOBF"];
           //
           // Doing the full contraction in one go leads to issues when more than
           // four MPI tasks are used. Technically, one can even combine
@@ -294,21 +295,18 @@ int main(int argc, char ** argv) {
           q3["txyzijcg"] = nyom::g0_sign[g2_src] * nyom::g[g2_snk]["iN"] * up["txyzNQcg"] * nyom::g[g2_src]["Qj"];
           sw.elapsed_print_and_reset("first term q3 construction");
 
-          Cfull["txyzij"] = eps_abc["ABC"] * eps_abc["EFG"] * 
-                            q1["txyzPMAE"] * q2["txyzMPBF"] * q3["txyzijCG"];
-          sw.elapsed_print_and_reset("first term colour anti-symmetrisation and sink momentum projection");
+          nc["txyzcef"] = eps_abc["ABc"] * q1["txyzPMAe"] * q2["txyzMPBf"];
+          nsc["txyzijefc"] = eps_abc["efG"] * q3["txyzijcG"];
+          Cfull["txyzij"] = nsc["txyzijEFC"] * nc["txyzCEF"];
+          sw.elapsed_print_and_reset("first term colour anti-symmetrisation");
 
           // now for the second term with up-quark exchange
           // 
-          // C["jit"] -= nyom::g0_sign[g1_src] * nyom::g0_sign[g2_src] *
-          //            eps_abc["ABC"] * eps_abc["EFG"] * 
-          //            nyom::g[g1_snk]["LM"] * nyom::g[g2_snk]["iN"] *
-          //            nyom::g[g1_src]["OP"] * nyom::g[g2_src]["Qj"] *
-          //            mom_snk["XYZ"] *
-          //            up["tXYZLQAG"] * up["tXYZNPCE"] * down["tXYZMOBF"];
-          
-          q3["txyzljag"] = nyom::g0_sign[g2_src] * up["txyzlQag"] * nyom::g[g2_src]["Qj"];
-          sw.elapsed_print_and_reset("second term q3 construction");
+          // Cfull["txyzij"] -= nyom::g0_sign[g1_src] * nyom::g0_sign[g2_src] *
+          //                    eps_abc["ABC"] * eps_abc["EFG"] * 
+          //                    nyom::g[g1_snk]["LM"] * nyom::g[g2_snk]["iN"] *
+          //                    nyom::g[g1_src]["OP"] * nyom::g[g2_src]["Qj"] *
+          //                    up["txyzLQAG"] * up["txyzNPCE"] * down["txyzMOBF"];
           
           q1["txyzipce"] = nyom::g[g2_snk]["iN"] * up["txyzNpce"];
           sw.elapsed_print_and_reset("second term q1 construction");
@@ -316,8 +314,13 @@ int main(int argc, char ** argv) {
           q2["txyzlpbf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["lM"] * nyom::g[g1_src]["Op"] * down["txyzMObf"];
           sw.elapsed_print_and_reset("second term q2 construction");
 
-          Cfull["txyzij"] -= eps_abc["ABC"] * eps_abc["EFG"] *
-                             q3["txyzLjAG"] * q2["txyzLPBF"] * q1["txyziPCE"];
+          q3["txyzljag"] = nyom::g0_sign[g2_src] * up["txyzlQag"] * nyom::g[g2_src]["Qj"];
+          sw.elapsed_print_and_reset("second term q3 construction");
+         
+          nsc["txyzipabe"] = eps_abc["abC"] * q1["txyzipCe"];
+          nsc2["txyzljaef"] = - q3["txyzljaG"] * eps_abc["GEF"];
+          // note there was an explicit sign change due to EFG -> GEF
+          Cfull["txyzij"] -= nsc["txyziPABE"] * q2["txyzLPBF"] * nsc2["txyzLjAEF"];
           sw.elapsed_print_and_reset("second term three-quark contraction, colour anti-symmetrisation and accumulation");
 
           // note index convention for Spin propagator, chosen such that it can be
