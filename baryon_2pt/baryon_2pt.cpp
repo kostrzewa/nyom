@@ -34,6 +34,7 @@
 
 #include "PointSourcePropagator.hpp"
 #include "SpinColourPropagator.hpp"
+#include "ColourDipolePropagator.hpp"
 #include "SpinPropagator.hpp"
 #include "MomentumTensor.hpp"
 #include "LeviCivita.hpp"
@@ -111,6 +112,13 @@ int main(int argc, char ** argv) {
   
   nyom::SpinColourPropagator up_mom(core);
   nyom::SpinColourPropagator down_mom(core);
+
+  nyom::SpinColourPropagator q1(core);
+  nyom::SpinColourPropagator q2(core);
+  nyom::SpinColourPropagator q3(core);
+
+  nyom::ColourDipolePropagator colour_dipole(core);
+
 
   sw.reset();
   nyom::MomentumTensor mom_snk(core,
@@ -267,16 +275,58 @@ int main(int argc, char ** argv) {
           if( g1_snk == std::string("C") || g1_snk == std::string("C0") ){
             g2_snk = std::string("5");
           }
-          // note index convention for Spin propagator
-          // TODO: turn this into an AutoTunable and test different
-          // ways of performing the contraction
-          C["jit"] = nyom::g0_sign[g1_src] * nyom::g0_sign[g2_src] *
-                     eps_abc["ABC"] * eps_abc["EFG"] * 
-                     nyom::g[g1_snk]["IJ"] * nyom::g[g2_snk]["iK"] *
-                     nyom::g[g1_src]["LM"] * nyom::g[g2_src]["Nj"] *
-                     ( up["tIMAE"] * up["tKNCG"] - up["tINAG"] * up["tKMCE"] ) *
-                     down["tJLBF"];
-          sw.elapsed_print_and_reset("Spin-colour contraction");
+
+          // This is the "direct" baryon contraction
+          //
+          //  C["jit"] = nyom::g0_sign[g1_src] * nyom::g0_sign[g2_src] *
+          //             eps_abc["ABC"] * eps_abc["EFG"] * 
+          //             nyom::g[g1_snk]["LM"] * nyom::g[g2_snk]["iN"] *
+          //             nyom::g[g1_src]["OP"] * nyom::g[g2_src]["Qj"] *
+          //             up["tLPAE"] * up["tNQCG"] * down["tMOBF"];
+          //
+          // Doing the full contraction in one go leads to issues when more than
+          // four MPI tasks are used. Technically, one can even combine
+          // the direct and exchange diagrams into a single line. It works
+          // up to four MPI tasks..
+          //
+          // Hence, we first take care of gamma structures
+          // first the third quark
+          // note that on the LHS below, we keep lower-case indices which will later
+          // be contractred as upper-case indices, such that we can keep track of what
+          // we are doing
+          q3["tijcg"] = nyom::g0_sign[g2_src] * nyom::g[g2_snk]["iN"] * up["tNQcg"] * nyom::g[g2_src]["Qj"];
+          sw.elapsed_print_and_reset("first term q3 construction");
+          
+          // now the colour dipole "propagator"
+          colour_dipole["taebf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["LM"] * up["tLPae"] * nyom::g[g1_src]["OP"] * down["tMObf"];
+          sw.elapsed_print_and_reset("first term colour dipole construction");
+
+          // note index convention for Spin propagator, chosen such that it can be
+          // serialised easily below
+          C["jit"] = eps_abc["ABC"] * eps_abc["EFG"] *
+                     q3["tijCG"] * colour_dipole["tAEBF"];
+          sw.elapsed_print_and_reset("first term colour anti-symmetrisation");
+
+          // now for the second term with up-quark exchange
+          // 
+          // C["jit"] -= nyom::g0_sign[g1_src] * nyom::g0_sign[g2_src] *
+          //            eps_abc["ABC"] * eps_abc["EFG"] * 
+          //            nyom::g[g1_snk]["LM"] * nyom::g[g2_snk]["iN"] *
+          //            nyom::g[g1_src]["OP"] * nyom::g[g2_src]["Qj"] *
+          //            up["tLQAG"] * up["tNPCE"] * down["tMOBF"];
+          
+          q3["tljag"] = nyom::g0_sign[g2_src] * up["tlQag"] * nyom::g[g2_src]["Qj"];
+          sw.elapsed_print_and_reset("second term q3 construction");
+          
+          q1["tipce"] = nyom::g[g2_snk]["iN"] * up["tNpce"];
+          sw.elapsed_print_and_reset("second term q1 construction");
+
+          q2["tlpbf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["lM"] * nyom::g[g1_src]["Op"] * down["tMObf"];
+          sw.elapsed_print_and_reset("second term q2 construction");
+
+          C["jit"] -= eps_abc["ABC"] * eps_abc["EFG"] *
+                      q3["tLjAG"] * q2["tLPBF"] * q1["tiPCE"];
+          sw.elapsed_print_and_reset("second term three-quark contraction and colour anti-symmetrisation");
 
           C_translated["jit"] = time_translation["tT"] * C["jiT"];
           sw.elapsed_print_and_reset("Time translation");
