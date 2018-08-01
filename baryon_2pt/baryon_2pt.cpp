@@ -110,9 +110,6 @@ int main(int argc, char ** argv) {
   nyom::PointSourcePropagator up(core);
   nyom::PointSourcePropagator down(core);
   
-  nyom::PointSourcePropagator up_mom(core);
-  nyom::PointSourcePropagator down_mom(core);
-
   nyom::PointSourcePropagator q1(core);
   nyom::PointSourcePropagator q2(core);
   nyom::PointSourcePropagator q3(core);
@@ -125,8 +122,9 @@ int main(int argc, char ** argv) {
                                {0, 0, 0});
   sw.elapsed_print("Momentum tensor creation");
 
-  nyom::SpinPropagator C(core);
-  nyom::SpinPropagator C_translated(core);
+  nyom::SpinPropagator Cfull(core);
+  nyom::SummedSpinPropagator C(core);
+  nyom::SummedSpinPropagator C_translated(core);
 
   nyom::LeviCivita eps_abc(core, 3);
 
@@ -236,10 +234,10 @@ int main(int argc, char ** argv) {
       
       sw.reset();
 
-      up["txyzijab"] = nyom::g["TwistPlus"]["iK"] * up_mom["txyzKLab"] * nyom::g["TwistPlus"]["Lj"];
+      up["txyzijab"] = nyom::g["TwistPlus"]["iK"] * props[UP]["txyzKLab"] * nyom::g["TwistPlus"]["Lj"];
       sw.elapsed_print_and_reset("up twist rotation");
 
-      down["txyzijab"] = nyom::g["TwistMinus"]["iK"] * down_mom["txyzKLab"] * nyom::g["TwistMinus"]["Lj"];
+      down["txyzijab"] = nyom::g["TwistMinus"]["iK"] * props[DOWN]["txyzKLab"] * nyom::g["TwistMinus"]["Lj"];
       sw.elapsed_print_and_reset("down twist rotation");
     
       // we build a 4x4 correlator matrix for the proton two-point function
@@ -287,17 +285,17 @@ int main(int argc, char ** argv) {
           // note that on the LHS below, we keep lower-case indices which will later
           // be contractred as upper-case indices, such that we can keep track of what
           // we are doing
+          q1["txyzpmae"] = up["txyzLpae"] * nyom::g[g1_snk]["Lm"];
+          sw.elapsed_print_and_reset("first term q1 construction");
+
+          q2["txyzmpbf"] = nyom::g0_sign[g1_src] * down["txyzmObf"] * nyom::g[g1_src]["Op"];
+          sw.elapsed_print_and_reset("first term q2 construction");          
+
           q3["txyzijcg"] = nyom::g0_sign[g2_src] * nyom::g[g2_snk]["iN"] * up["txyzNQcg"] * nyom::g[g2_src]["Qj"];
           sw.elapsed_print_and_reset("first term q3 construction");
-          
-          // now the colour dipole "propagator"
-          colour_dipole["txyzaebf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["LM"] * up["txyzLPae"] * nyom::g[g1_src]["OP"] * down["txyzMObf"];
-          sw.elapsed_print_and_reset("first term colour dipole construction");
 
-          // note index convention for Spin propagator, chosen such that it can be
-          // serialised easily below
-          C["jit"] = eps_abc["ABC"] * eps_abc["EFG"] * mom_snk["XYZ"] *
-                     q3["tXYZijCG"] * colour_dipole["tXYZAEBF"];
+          Cfull["txyzij"] = eps_abc["ABC"] * eps_abc["EFG"] * 
+                            q1["txyzPMAE"] * q2["txyzMPBF"] * q3["txyzijCG"];
           sw.elapsed_print_and_reset("first term colour anti-symmetrisation and sink momentum projection");
 
           // now for the second term with up-quark exchange
@@ -318,9 +316,14 @@ int main(int argc, char ** argv) {
           q2["txyzlpbf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["lM"] * nyom::g[g1_src]["Op"] * down["txyzMObf"];
           sw.elapsed_print_and_reset("second term q2 construction");
 
-          C["jit"] -= eps_abc["ABC"] * eps_abc["EFG"] * mom_snk["XYZ"] *
-                      q3["tXYZLjAG"] * q2["tXYZLPBF"] * q1["tXYZiPCE"];
-          sw.elapsed_print_and_reset("second term three-quark contraction, colour anti-symmetrisation, momentum projection and accumulation");
+          Cfull["txyzij"] -= eps_abc["ABC"] * eps_abc["EFG"] *
+                             q3["txyzLjAG"] * q2["txyzLPBF"] * q1["txyziPCE"];
+          sw.elapsed_print_and_reset("second term three-quark contraction, colour anti-symmetrisation and accumulation");
+
+          // note index convention for Spin propagator, chosen such that it can be
+          // serialised easily below
+          C["jit"] = mom_snk["XYZ"] * Cfull["tXYZij"];
+          sw.elapsed_print_and_reset("sink momentum projection");
 
           C_translated["jit"] = time_translation["tT"] * C["jiT"];
           sw.elapsed_print_and_reset("Time translation");
