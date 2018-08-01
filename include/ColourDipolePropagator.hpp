@@ -30,6 +30,9 @@ namespace nyom {
 // Ther ordering can be adjusted at will by simply adjusting the ordering here
 typedef enum ColourDipolePropagator_dims_t {
   CDP_DIM_T_SNK = 0,
+  CDP_DIM_X_SNK,
+  CDP_DIM_Y_SNK,
+  CDP_DIM_Z_SNK,
   CDP_DIM_C1_SNK,
   CDP_DIM_C1_SRC,
   CDP_DIM_C2_SNK,
@@ -68,20 +71,23 @@ public:
 
 private:
   const nyom::Core & core;
-  int shapes[5];
-  int sizes[5];
+  int shapes[8];
+  int sizes[8];
 
   void init()
   {
-    for(int d = 0; d < 5; ++d){
+    for(int d = 0; d < 8; ++d){
       shapes[d] = NS;
     }
     sizes[CDP_DIM_T_SNK] = core.input_node["Nt"].as<int>();
+    sizes[CDP_DIM_X_SNK] = core.input_node["Nx"].as<int>();
+    sizes[CDP_DIM_Y_SNK] = core.input_node["Ny"].as<int>();
+    sizes[CDP_DIM_Z_SNK] = core.input_node["Nz"].as<int>();
     sizes[CDP_DIM_C1_SNK] = 3;
     sizes[CDP_DIM_C1_SRC] = 3;
     sizes[CDP_DIM_C2_SNK] = 3;
     sizes[CDP_DIM_C2_SRC] = 3;
-    tensor = CTF::Tensor< complex<double> >(5, sizes, shapes, core.geom.get_world(), "ColourDipolePropagator" );
+    tensor = CTF::Tensor< complex<double> >(8, sizes, shapes, core.geom.get_world(), "ColourDipolePropagator" );
   }
 };
 

@@ -107,15 +107,15 @@ int main(int argc, char ** argv) {
   props.emplace_back(core);
   props.emplace_back(core);
 
-  nyom::SpinColourPropagator up(core);
-  nyom::SpinColourPropagator down(core);
+  nyom::PointSourcePropagator up(core);
+  nyom::PointSourcePropagator down(core);
   
-  nyom::SpinColourPropagator up_mom(core);
-  nyom::SpinColourPropagator down_mom(core);
+  nyom::PointSourcePropagator up_mom(core);
+  nyom::PointSourcePropagator down_mom(core);
 
-  nyom::SpinColourPropagator q1(core);
-  nyom::SpinColourPropagator q2(core);
-  nyom::SpinColourPropagator q3(core);
+  nyom::PointSourcePropagator q1(core);
+  nyom::PointSourcePropagator q2(core);
+  nyom::PointSourcePropagator q3(core);
 
   nyom::ColourDipolePropagator colour_dipole(core);
 
@@ -159,7 +159,7 @@ int main(int argc, char ** argv) {
       // we will time translate the correlator such that the indices are always
       // relative to the source
       // we also undo the twisted temporal boundary conditions on the quark
-      // fields (beware ifnaive anti-periodic boundary conditions are used in
+      // fields (beware if naive anti-periodic boundary conditions are used in
       // the inversion instead)
       nyom::SimpleShift time_translation(core, Nt, -src_coords[0], 3*nyom::pi/Nt);
 
@@ -236,18 +236,10 @@ int main(int argc, char ** argv) {
       
       sw.reset();
 
-      // first we do the momentum projections, allowing us to work with
-      // small tensors below
-      up_mom["tijab"] = mom_snk["XYZ"] * props[UP]["tXYZijab"];
-      sw.elapsed_print_and_reset("up prop mom projection");
-
-      down_mom["tijab"] = mom_snk["XYZ"] * props[DOWN]["tXYZijab"];
-      sw.elapsed_print_and_reset("down prop mom projection");
-
-      up["tijab"] = nyom::g["TwistPlus"]["iK"] * up_mom["tKLab"] * nyom::g["TwistPlus"]["Lj"];
+      up["txyzijab"] = nyom::g["TwistPlus"]["iK"] * up_mom["txyzKLab"] * nyom::g["TwistPlus"]["Lj"];
       sw.elapsed_print_and_reset("up twist rotation");
 
-      down["tijab"] = nyom::g["TwistMinus"]["iK"] * down_mom["tKLab"] * nyom::g["TwistMinus"]["Lj"];
+      down["txyzijab"] = nyom::g["TwistMinus"]["iK"] * down_mom["txyzKLab"] * nyom::g["TwistMinus"]["Lj"];
       sw.elapsed_print_and_reset("down twist rotation");
     
       // we build a 4x4 correlator matrix for the proton two-point function
@@ -282,7 +274,8 @@ int main(int argc, char ** argv) {
           //             eps_abc["ABC"] * eps_abc["EFG"] * 
           //             nyom::g[g1_snk]["LM"] * nyom::g[g2_snk]["iN"] *
           //             nyom::g[g1_src]["OP"] * nyom::g[g2_src]["Qj"] *
-          //             up["tLPAE"] * up["tNQCG"] * down["tMOBF"];
+          //             mom_snk["XYZ"] *
+          //             up["tXYZLPAE"] * up["tXYZNQCG"] * down["tXYZMOBF"];
           //
           // Doing the full contraction in one go leads to issues when more than
           // four MPI tasks are used. Technically, one can even combine
@@ -294,18 +287,18 @@ int main(int argc, char ** argv) {
           // note that on the LHS below, we keep lower-case indices which will later
           // be contractred as upper-case indices, such that we can keep track of what
           // we are doing
-          q3["tijcg"] = nyom::g0_sign[g2_src] * nyom::g[g2_snk]["iN"] * up["tNQcg"] * nyom::g[g2_src]["Qj"];
+          q3["txyzijcg"] = nyom::g0_sign[g2_src] * nyom::g[g2_snk]["iN"] * up["txyzNQcg"] * nyom::g[g2_src]["Qj"];
           sw.elapsed_print_and_reset("first term q3 construction");
           
           // now the colour dipole "propagator"
-          colour_dipole["taebf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["LM"] * up["tLPae"] * nyom::g[g1_src]["OP"] * down["tMObf"];
+          colour_dipole["txyzaebf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["LM"] * up["txyzLPae"] * nyom::g[g1_src]["OP"] * down["txyzMObf"];
           sw.elapsed_print_and_reset("first term colour dipole construction");
 
           // note index convention for Spin propagator, chosen such that it can be
           // serialised easily below
-          C["jit"] = eps_abc["ABC"] * eps_abc["EFG"] *
-                     q3["tijCG"] * colour_dipole["tAEBF"];
-          sw.elapsed_print_and_reset("first term colour anti-symmetrisation");
+          C["jit"] = eps_abc["ABC"] * eps_abc["EFG"] * mom_snk["XYZ"] *
+                     q3["tXYZijCG"] * colour_dipole["tXYZAEBF"];
+          sw.elapsed_print_and_reset("first term colour anti-symmetrisation and sink momentum projection");
 
           // now for the second term with up-quark exchange
           // 
@@ -313,20 +306,21 @@ int main(int argc, char ** argv) {
           //            eps_abc["ABC"] * eps_abc["EFG"] * 
           //            nyom::g[g1_snk]["LM"] * nyom::g[g2_snk]["iN"] *
           //            nyom::g[g1_src]["OP"] * nyom::g[g2_src]["Qj"] *
-          //            up["tLQAG"] * up["tNPCE"] * down["tMOBF"];
+          //            mom_snk["XYZ"] *
+          //            up["tXYZLQAG"] * up["tXYZNPCE"] * down["tXYZMOBF"];
           
-          q3["tljag"] = nyom::g0_sign[g2_src] * up["tlQag"] * nyom::g[g2_src]["Qj"];
+          q3["txyzljag"] = nyom::g0_sign[g2_src] * up["txyzlQag"] * nyom::g[g2_src]["Qj"];
           sw.elapsed_print_and_reset("second term q3 construction");
           
-          q1["tipce"] = nyom::g[g2_snk]["iN"] * up["tNpce"];
+          q1["txyzipce"] = nyom::g[g2_snk]["iN"] * up["tNpce"];
           sw.elapsed_print_and_reset("second term q1 construction");
 
-          q2["tlpbf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["lM"] * nyom::g[g1_src]["Op"] * down["tMObf"];
+          q2["txyzlpbf"] = nyom::g0_sign[g1_src] * nyom::g[g1_snk]["lM"] * nyom::g[g1_src]["Op"] * down["tMObf"];
           sw.elapsed_print_and_reset("second term q2 construction");
 
-          C["jit"] -= eps_abc["ABC"] * eps_abc["EFG"] *
-                      q3["tLjAG"] * q2["tLPBF"] * q1["tiPCE"];
-          sw.elapsed_print_and_reset("second term three-quark contraction and colour anti-symmetrisation");
+          C["jit"] -= eps_abc["ABC"] * eps_abc["EFG"] * mom_snk["XYZ"] *
+                      q3["tXYZLjAG"] * q2["tXYZLPBF"] * q1["tXYZiPCE"];
+          sw.elapsed_print_and_reset("second term three-quark contraction, colour anti-symmetrisation, momentum projection and accumulation");
 
           C_translated["jit"] = time_translation["tT"] * C["jiT"];
           sw.elapsed_print_and_reset("Time translation");
