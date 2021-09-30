@@ -60,6 +60,7 @@ double measureFlopsPerSecond( double local_time,
   if(rank==0){
     printf("Performance in '%s': %.6e mflop/s\n", name, fps);
   }
+  return fps;
 }
 
 typedef enum flav_idx_t {
