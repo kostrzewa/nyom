@@ -110,7 +110,10 @@ private:
     ym1,
     yp1,
     zm1,
-    zp1
+    zp1,
+    tm1,
+    tp1,
+    SHIFT_NDIM
   } shift_dimension_t;
 
 
@@ -133,7 +136,7 @@ private:
                                                  CTF::World &world){
     const int shapes[2] = {NS, NS};
     int sizes[2];
-    int dim_sizes[3] = { Nx, Ny, Nz };
+    int dim_sizes[4] = { Nx, Ny, Nz, Nt };
 
     std::vector< CTF::Tensor< complex<double> > > shifts;
 
@@ -149,9 +152,13 @@ private:
     shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_mz") );
     shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_pz") );
 
-    // for each direction (-+x , -+y, -+z), construct the shift
+    sizes[0] = sizes[1] = Nt;
+    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_mt") );
+    shifts.emplace_back( CTF::Tensor< complex<double> >(2, sizes, shapes, world, "shift_pt") );
+
+    // for each direction (-+x , -+y, -+z, -+t), construct the shift
     // matrix (for shifts by a single lattice site)
-    for( int dir : {0, 1, 2, 3, 4, 5} ){
+    for( int dir : {0, 1, 2, 3, 4, 5, 6, 7} ){
       int64_t nval;
       int64_t* indices;
       complex<double>* values;

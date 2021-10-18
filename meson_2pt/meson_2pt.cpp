@@ -81,6 +81,7 @@ int main(int argc, char ** argv) {
   const int conf_start = core.input_node["conf_start"].as<int>();
   const int conf_stride = core.input_node["conf_stride"].as<int>();
   const int conf_end = core.input_node["conf_end"].as<int>();
+  const int n_src = core.input_node["n_src"].as<int>();
 
   const int nyom_threads = core.input_node["threaded"].as<bool>() ? 2 : 1;
 
@@ -135,7 +136,7 @@ int main(int argc, char ** argv) {
                                {-1, 0, 0});
   sw.elapsed_print("Momentum tensor creation");
 
-  for(int src_id = 0; src_id < 1; src_id++){
+  for(int src_id = 0; src_id < n_src; src_id++){
     int src_coords[4];
     
     // for certainty, we broadcast the source coordinates from rank 0 

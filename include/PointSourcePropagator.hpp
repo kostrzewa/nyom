@@ -43,8 +43,12 @@ typedef enum PointSourcePropagator_dims_t {
   PSP_DIM_D_SRC,
   PSP_DIM_C_SNK,
   PSP_DIM_C_SRC,
+  PSP_DIM_F_SNK,
+  PSP_DIM_F_SRC,
+  PSP_NDIM
 } PointSourcePropagator_dims_t;
 
+template <int Nf>
 class PointSourcePropagator
 {
 public:
@@ -67,7 +71,8 @@ public:
 
   void fill(const spinor * const propagator,
             const int src_d,
-            const int src_c){
+            const int src_c,
+            const int src_f){
 
     int Nt = core.input_node["Nt"].as<int>();
     int Nx = core.input_node["Nx"].as<int>();
@@ -80,8 +85,8 @@ public:
                        core.geom.tmlqcd_lat.LZ;
 
     nyom::Stopwatch sw(core.geom.get_nyom_comm());
-    int64_t npair = 4*3*local_volume;
-    std::vector<int64_t> indices( 4*3*local_volume );
+    int64_t npair = 4*3*Nf*local_volume;
+    std::vector<int64_t> indices( npair );
     int64_t counter = 0;
 
     // The propagator vector on the tmLQCD side is ordered
@@ -104,15 +109,19 @@ public:
 
             for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
               for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
-                indices[counter] = gt                         +
-                                   gx    * (Nt)               +
-                                   gy    * (Nt*Nx)            +
-                                   gz    * (Nt*Nx*Ny)         +
-                                   snk_d * (Nt*Nx*Ny*Nz)      +
-                                   src_d * (Nt*Nx*Ny*Nz*4)    +
-                                   snk_c * (Nt*Nx*Ny*Nz*4*4)  +
-                                   src_c * (Nt*Nx*Ny*Nz*4*4*3);
-                counter++;
+                for(int64_t snk_f =0; snk_f < Nf; ++snk_f){
+                  indices[counter] = gt                            +
+                                     gx    * (Nt)                  +
+                                     gy    * (Nt*Nx)               +
+                                     gz    * (Nt*Nx*Ny)            +
+                                     snk_d * (Nt*Nx*Ny*Nz)         +
+                                     src_d * (Nt*Nx*Ny*Nz*4)       +
+                                     snk_c * (Nt*Nx*Ny*Nz*4*4)     +
+                                     src_c * (Nt*Nx*Ny*Nz*4*4*3)   +
+                                     snk_f * (Nt*Nx*Ny*Nz*4*4*3*3) +
+                                     src_f * (Nt*Nx*Ny*Nz*4*4*3*3*Nf);
+                  counter++;
+                }
               }
             }
           }
@@ -135,15 +144,15 @@ public:
 
   CTF::Tensor< complex<double> > tensor;
   int src_coords[4];
-  int sizes[8];
-  int shapes[8];
+  int sizes[PSP_NDIM];
+  int shapes[PSP_NDIM];
 
 private:
   const nyom::Core & core;
 
   void init()
   {
-    for( int i = 0; i < 8; ++i ){
+    for( int i = 0; i < PSP_NDIM; ++i ){
       shapes[i] = NS;
     }
     sizes[PSP_DIM_T_SNK] = core.input_node["Nt"].as<int>();
@@ -154,7 +163,9 @@ private:
     sizes[PSP_DIM_D_SNK] = 4;
     sizes[PSP_DIM_C_SRC] = 3;
     sizes[PSP_DIM_C_SNK] = 3;
-    tensor = CTF::Tensor< complex<double> >(8, sizes, shapes, core.geom.get_world(), "PointSourcePropagator" );
+    sizes[PSP_DIM_F_SRC] = Nf;
+    sizes[PSP_DIM_F_SNK] = Nf;
+    tensor = CTF::Tensor< complex<double> >(PSP_NDIM, sizes, shapes, core.geom.get_world(), "PointSourcePropagator" );
   }
 };
 
