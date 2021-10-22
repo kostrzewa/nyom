@@ -24,6 +24,7 @@
 #include <ctf.hpp>
 
 namespace nyom {
+
   const int gamma_sizes[2] = { 4, 4 };
   const int gamma_shapes[2] = { NS, NS };
 
@@ -185,5 +186,58 @@ namespace nyom {
     g["TwistPlus"]["ab"] = (1.0/sqrt(2.0)) * ( (g["I"])["ab"] + ( (g["iI"])["aK"] * (g["5"])["Kb"] ) );
     g["TwistMinus"]["ab"] = (1.0/sqrt(2.0)) * ( (g["I"])["ab"] - ( (g["iI"])["aK"] * (g["5"])["Kb"] ) );
   }
+  
+  const int tau_sizes[2] = { 2, 2 };
+  const int tau_shapes[2] = { NS, NS };
 
+  std::map < std::string, CTF::Tensor< std::complex<double> > > tau;
+
+  std::vector<std::string> i_tau;
+
+  void init_taus(CTF::World& dw){
+    for( std::string t1 : { "1", "2", "3" } ){
+      i_tau.push_back(t1);
+    }
+    
+    for( auto i : i_tau ){
+      tau[i] = CTF::Tensor<std::complex<double> >(2, tau_sizes, tau_shapes, dw, i.c_str());
+    }
+  
+    // remember that in CTF the left-most index runs fastest, for a rank 2 tensor, this means
+    // that the "row" index runs fastest such that the conditionals below should be thought of
+    // as iterating over the columns of the matrix, top to bottom, left to right
+    int64_t npair;
+    int64_t* idx;
+    std::complex<double>* pairs;
+  
+    tau["1"].read_local(&npair,&idx,&pairs);
+    for(int64_t i = 0; i < npair; ++i){
+      if(idx[i]==0) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==1) pairs[i] = std::complex<double>(1, 0);
+      if(idx[i]==2) pairs[i] = std::complex<double>(1, 0);
+      if(idx[i]==3) pairs[i] = std::complex<double>(0, 0);
+    }
+    tau["1"].write(npair,idx,pairs); 
+    free(idx); free(pairs);
+    
+    tau["2"].read_local(&npair,&idx,&pairs);
+    for(int64_t i = 0; i < npair; ++i){
+      if(idx[i]==0) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==1) pairs[i] = std::complex<double>(0, 1);
+      if(idx[i]==2) pairs[i] = std::complex<double>(0, -1);
+      if(idx[i]==3) pairs[i] = std::complex<double>(0, 0);
+    }
+    tau["2"].write(npair,idx,pairs); 
+    free(idx); free(pairs);
+    
+    tau["3"].read_local(&npair,&idx,&pairs);
+    for(int64_t i = 0; i < npair; ++i){
+      if(idx[i]==0) pairs[i] = std::complex<double>(1, 0);
+      if(idx[i]==1) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==2) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==3) pairs[i] = std::complex<double>(-1, 0);
+    }
+    tau["3"].write(npair,idx,pairs); 
+    free(idx); free(pairs);
+  }
 }

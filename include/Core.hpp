@@ -28,6 +28,8 @@
 #include "Logfile.hpp"
 #include "Stopwatch.hpp"
 
+#include "gammas.hpp"
+
 #include <ctf.hpp>
 #include <tmLQCD.h>
 #include <yaml-cpp/yaml.h>
@@ -95,6 +97,9 @@ class Core {
       }
       sw = new nyom::Stopwatch( geom.get_nyom_comm() );
       MPI_Barrier( geom.get_nyom_comm() );
+
+      init_gammas( geom.get_world() );
+      init_taus( geom.get_world() );
     }
       
 

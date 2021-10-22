@@ -41,4 +41,14 @@ extern std::vector < std::string > i_g;
 
 void init_gammas(CTF::World& dw);
 
+// Pauli matrices
+extern const int tau_sizes[2];
+extern const int tau_shapes[2];
+
+extern std::map < std::string, CTF::Tensor< std::complex<double> > > tau;
+
+extern std::vector< std::string > i_tau;
+
+void init_taus(CTF::World& dw);
+
 } // namespace nyom
