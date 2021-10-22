@@ -1,4 +1,3 @@
-cmake_minimum_required (VERSION 2.6)
 ## this setup comes from
 ## https://stackoverflow.com/a/27160614
 

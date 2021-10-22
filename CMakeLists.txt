@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.8)
+cmake_minimum_required (VERSION 3.0)
 project (nyom)
 
 set( MPI_HOME CACHE PATH "path to MPI library installation directory" )
@@ -168,6 +168,7 @@ endif()
 # base package includes and libraries
 include_directories(include)
 
+add_subdirectory(lib)
 add_subdirectory(fr_bsm3_2pt)
 add_subdirectory(peram_gen)
 add_subdirectory(meson_2pt)
