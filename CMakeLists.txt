@@ -1,6 +1,13 @@
 cmake_minimum_required (VERSION 3.0)
 project (nyom)
 
+enable_language(CXX)
+enable_language(C)
+enable_language(Fortran)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set( MPI_HOME CACHE PATH "path to MPI library installation directory" )
 if( MPI_HOME )
   include_directories(${MPI_HOME}/include)
@@ -23,6 +30,24 @@ if( CTF_HOME )
   link_libraries( -lctf )
 else()
   message( FATAL_ERROR "CTF_HOME must be defined!" )
+endif()
+
+set( SCALAPACK_HOME CACHE PATH "path to SCALAPACK installation" )
+if( SCALAPACK_HOME )
+  link_directories(${SCALAPACK_HOME}/lib)
+  ## FIXME: we link -lgfortran but really should have some general solution for any fortran std lib...
+  link_libraries(-lscalapack -lgfortran)
+else()
+  message( FATAL_ERROR "SCALAPACK_HOME must be specified!" )
+endif()
+
+set( HPTT_HOME CACHE PATH "path to HPTT library installation directory" )
+if( HPTT_HOME )
+  include_directories(${HPTT_HOME}/include)
+  link_directories(${HPTT_HOME}/lib)
+  link_libraries(-lhptt)
+else()
+  message( FATAL_ERROR "HPTT_HOME must be defined!" )
 endif()
 
 set( TMLQCD_SRC CACHE PATH "path to tmLQCD source directory" )
@@ -118,11 +143,9 @@ if( QUDA_HOME )
 endif()
 
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(yaml-cpp REQUIRED)
-message("Found yaml-cpp: ${YAML_CPP_LIBRARIES}")
+message("Found yaml-cpp -- libs: ${YAML_CPP_LIBRARIES} includes: ${YAML_CPP_INCLUDE_DIR}")
 include_directories(${YAML_CPP_INCLUDE_DIR})
 link_libraries(${YAML_CPP_LIBRARIES})
 
