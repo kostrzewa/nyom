@@ -34,7 +34,7 @@ typedef enum log_location_t {
   log_all
 } log_location_t;
 
-std::string logtype_to_string(const logtype_t type){
+inline std::string logtype_to_string(const logtype_t type){
   switch(type){
     case log:
       return(std::string("log"));
