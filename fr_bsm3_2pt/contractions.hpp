@@ -7,44 +7,113 @@
 #include "Stopwatch.hpp"
 
 #include <complex>
+#include <sstream>
+#include <iomanip>
+#include <utility>
+#include <iostream>
+
+template <typename T>
+size_t
+count_unique_pairs(const std::vector<T> & v1, const std::vector<T> &v2, const nyom::Core & core)
+{
+  std::vector< std::pair<T,T> > pairs;
+  for(auto e1 : v1){
+    for(auto e2 : v2){
+      bool not_found = true;
+      for(auto ep : pairs){
+        if( (ep.first == e1 && ep.second == e2) || (ep.first == e2 && ep.second == e1) ){
+          not_found = false;
+          break;
+        }
+      }
+      if(not_found) pairs.push_back( std::make_pair(e1,e2) );
+    }
+  }
+  return pairs.size();
+}
 
 template <int Nf>
 inline void 
 local_2pt(nyom::PointSourcePropagator<Nf> & S, nyom::PointSourcePropagator<Nf> & Stilde,
-          const nyom::Core &core)
+          const nyom::Core &core, const int gauge_conf_id, const int scalar_idx)
 {
   nyom::Logger logger(core, 0, 0);
 
-  nyom::PointSourcePropagator<Nf> S1(core);
-  nyom::PointSourcePropagator<Nf> S2(core);
+  // temporaries
+  nyom::PointSourcePropagator<Nf> S1i(core), S1ig(core);
+  nyom::PointSourcePropagator<Nf> S2j(core), S2jg(core);
 
   CTF::Vector< std::complex<double> > C(core.input_node["Nt"].as<int>(), core.geom.get_world());
 
-  const std::vector<std::string> gammas = {"5", "0", "1", "2", "3", "05"};
+  // we use the same set of gamma and isospin structures at source and sink
+  // if we use different ones, the loops below need to be adjusted
+  const std::vector<std::string> g_src = {"5", "I", "0", "1", "2", "3", "05", "01", "02", "03"};
+  const std::vector<std::string> g_snk = g_src;
 
-  const int n_contr = nyom::i_tau.size() * nyom::i_tau.size() *
-                      gammas.size() * gammas.size();
+  const std::vector<std::string> t_src = {"1", "2", "3"};
+  const std::vector<std::string> t_snk = t_src;
+
+  const size_t n_contr = count_unique_pairs(g_src, g_snk, core) * count_unique_pairs(t_src, t_snk, core);
 
   int contr = 0;
 
   nyom::Stopwatch sw( core.geom.get_nyom_comm() );
 
-  for( auto t_src : nyom::i_tau ){
-    S1["txyzijabfg"] = nyom::tau[t_src]["fH"] * Stilde["txyzijabgH"];
-    for( auto t_snk : nyom::i_tau ){
-      S2["txyzijabfg"] = nyom::tau[t_snk]["fH"] * S["txyziKabHg"];
-      for( auto g_src : gammas ){
-        S2["txyzijabfg"] = S2["txyziKabfg"] * nyom::g[g_src]["Kj"];
-        for( auto g_snk : gammas ){
+  char fname[100];
+  snprintf(fname, 100,
+           "local2pt_conf%04d_scalar%04d",
+           gauge_conf_id, scalar_idx);
+
+  std::ofstream correls;
+
+  if(core.geom.get_myrank() == 0) correls.open(fname);
+
+  sw.reset();
+
+  for( size_t it_snk = 0; it_snk < t_snk.size(); it_snk++ ){
+    // Stilde has already been transposed, all multiplications
+    // can proceed in the normal way and we take a regular scalar product
+    // in the end
+    S1i["txyzijabfg"] = Stilde["txyzijabfH"] * nyom::tau[ t_snk[it_snk] ]["Hg"];
+
+    for( size_t it_src = it_snk; it_src < t_src.size(); it_src++ ){
+      S2j["txyzijabfg"] = S["txyzijabfH"] * nyom::tau[ t_src[it_src] ]["Hg"];
+
+      for( size_t ig_snk = 0; ig_snk < g_snk.size(); ig_snk++ ){
+        // Stilde has already been tranposed
+        S1ig["txyzijabfg"] = S1i["txyziKabfg"] * nyom::g[ g_snk[ig_snk] ]["Kj"];
+
+        for( size_t ig_src = ig_snk; ig_src < g_src.size(); ig_src++ ){
+          std::stringstream cname;
+          cname << "g_snk" << g_snk[ig_snk] << "-g_src" << g_src[ig_src] <<
+            "-t_snk" << t_snk[it_snk] << "-t_src" << t_src[it_src];
+
           contr++;
-          logger << "Contraction " << contr << " of " << n_contr << std::endl; 
-          S1["txyzijabfg"] = S1["txyzKjabfg"] * nyom::g[g_snk]["Ki"];
-          
-          C["t"] = S1["tXYZJIBAGF"] * S2["tXYZIJABFG"];
+          logger << "Contraction " << contr << " / " << n_contr << ": " <<
+            cname.str() << std::endl;
+
+          S2jg["txyzijabfg"] = S2j["txyziKabfg"] * nyom::g[ g_src[ig_src] ]["Kj"];
+
+          C["t"] = - 0.25 * nyom::g0_sign[ g_src[ig_src] ] * S1ig["tXYZIJABFG"] * S2jg["tXYZJIBAGF"];
+          std::complex<double> * values;
+          int64_t nval;
+          C.read_all(&nval, &values);
+
+          if(core.geom.get_myrank() == 0){
+            for(int64_t i = 0; i < nval; i++){
+              correls << cname.str() << '\t' << i << '\t' <<
+                std::scientific << std::setprecision(10) << values[i].real() << '\t' << 
+                std::scientific << std::setprecision(10) << values[i].imag() << 
+                std::endl;
+            }
+          }
+
+          free(values);
           sw.elapsed_print_and_reset("Done.");
         }
       }
     }
   }
+  if(core.geom.get_myrank()) correls.close();
 }
 

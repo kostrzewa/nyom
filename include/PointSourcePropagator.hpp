@@ -74,15 +74,17 @@ public:
             const int src_c,
             const int src_f){
 
-    int Nt = core.input_node["Nt"].as<int>();
-    int Nx = core.input_node["Nx"].as<int>();
-    int Ny = core.input_node["Ny"].as<int>();
-    int Nz = core.input_node["Nz"].as<int>();
+    const int Nt = core.input_node["Nt"].as<int>();
+    const int Nx = core.input_node["Nx"].as<int>();
+    const int Ny = core.input_node["Ny"].as<int>();
+    const int Nz = core.input_node["Nz"].as<int>();
 
-    int local_volume = core.geom.tmlqcd_lat.T  *
-                       core.geom.tmlqcd_lat.LX *
-                       core.geom.tmlqcd_lat.LY *
-                       core.geom.tmlqcd_lat.LZ;
+    const int lt = core.geom.tmlqcd_lat.T; 
+    const int lx = core.geom.tmlqcd_lat.LX;
+    const int ly = core.geom.tmlqcd_lat.LY;
+    const int lz = core.geom.tmlqcd_lat.LZ; 
+
+    const int local_volume = lt * lx * ly * lz;
 
     nyom::Stopwatch sw(core.geom.get_nyom_comm());
     int64_t npair = 4*3*Nf*local_volume;
@@ -90,26 +92,21 @@ public:
     int64_t counter = 0;
 
     // The propagator vector on the tmLQCD side is ordered
-    // (slowest to fastest) TXYZ Dirac colour complex
+    // (slowest to fastest) flavour TXYZ Dirac colour complex
     // On the other hand, the CTF::Tensor has the ordering
     // given by the index translation below, with T
     // running fastest.
-    for(int64_t t = 0; t < core.geom.tmlqcd_lat.T; ++t){
-
-      int64_t gt = core.geom.tmlqcd_lat.T*core.geom.tmlqcd_mpi.proc_coords[0] + t;
-
-      for(int64_t x = 0; x < core.geom.tmlqcd_lat.LX; ++x){
-        int64_t gx = core.geom.tmlqcd_lat.LX*core.geom.tmlqcd_mpi.proc_coords[1] + x;
-
-        for(int64_t y = 0; y < core.geom.tmlqcd_lat.LY; ++y){
-          int64_t gy = core.geom.tmlqcd_lat.LY*core.geom.tmlqcd_mpi.proc_coords[2] + y;
-
-          for(int64_t z = 0; z < core.geom.tmlqcd_lat.LZ; ++z){
-            int64_t gz = core.geom.tmlqcd_lat.LZ*core.geom.tmlqcd_mpi.proc_coords[3] + z;
-
-            for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
-              for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
-                for(int64_t snk_f =0; snk_f < Nf; ++snk_f){
+    for(int64_t snk_f =0; snk_f < Nf; ++snk_f){
+      for(int64_t t = 0; t < lt; ++t){
+        int64_t gt = lt*core.geom.tmlqcd_mpi.proc_coords[0] + t;
+        for(int64_t x = 0; x < lx; ++x){
+          int64_t gx = lx*core.geom.tmlqcd_mpi.proc_coords[1] + x;
+          for(int64_t y = 0; y < ly; ++y){
+            int64_t gy = ly*core.geom.tmlqcd_mpi.proc_coords[2] + y;
+            for(int64_t z = 0; z < lz; ++z){
+              int64_t gz = lz*core.geom.tmlqcd_mpi.proc_coords[3] + z;
+              for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
+                for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
                   indices[counter] = gt                            +
                                      gx    * (Nt)                  +
                                      gy    * (Nt*Nx)               +
@@ -159,12 +156,12 @@ private:
     sizes[PSP_DIM_X_SNK] = core.input_node["Nx"].as<int>();
     sizes[PSP_DIM_Y_SNK] = core.input_node["Ny"].as<int>();
     sizes[PSP_DIM_Z_SNK] = core.input_node["Nz"].as<int>();
-    sizes[PSP_DIM_D_SRC] = 4;
     sizes[PSP_DIM_D_SNK] = 4;
-    sizes[PSP_DIM_C_SRC] = 3;
+    sizes[PSP_DIM_D_SRC] = 4;
     sizes[PSP_DIM_C_SNK] = 3;
-    sizes[PSP_DIM_F_SRC] = Nf;
+    sizes[PSP_DIM_C_SRC] = 3;
     sizes[PSP_DIM_F_SNK] = Nf;
+    sizes[PSP_DIM_F_SRC] = Nf;
     tensor = CTF::Tensor< complex<double> >(PSP_NDIM, sizes, shapes, core.geom.get_world(), "PointSourcePropagator" );
   }
 };
