@@ -144,15 +144,24 @@ namespace nyom {
     free(idx); free(pairs);
   
     g["5"]["ab"] = (g["0"])["aI"] * (g["1"])["IJ"] * (g["2"])["JK"] * (g["3"])["Kb"];
-  
-    g["05"]["ab"] = (g["0"])["aI"] * (g["5"])["Jb"];
-    // sign has been set in the loop above
+ 
+    // actually fill the products with numbers, the signs have already been set above
+    for( std::string g1 : { "0", "1", "2", "3", "5" } ){
+      for( std::string g2 : { "0", "1", "2", "3", "5" } ){
+        // want to make: 01 02 03 05 15 25 35 12 13 23 21 31 
+        if( g1 == g2 || g1 == std::string("5") || g2 == std::string("0") ){
+          continue;
+        }
+        g[g1+g2]["ij"] = g[g1]["iK"] * g[g2]["Kj"];
+      }
+    }
   
     g["i05"]["ab"] = (g["iI"])["aK"] * (g["05"])["Kb"];
     g0_sign["i05"] = -1.0;
   
     // charge conjugation
-    // no support for complex number scaling during contraction...
+    // no support for complex number scaling during contraction so we
+    // use a unit matrix with the imaginary unit on the diagonal
     g["C"]["ab"] = g["iI"]["aK"] * g["0"]["KJ"] * g["2"]["Jb"];
     g0_sign["C"] = -1.0;
   
@@ -195,7 +204,7 @@ namespace nyom {
   std::vector<std::string> i_tau;
 
   void init_taus(CTF::World& dw){
-    for( std::string t1 : { "1", "2", "3" } ){
+    for( std::string t1 : { "1", "2", "3", "uu", "dd", "ud", "du" } ){
       i_tau.push_back(t1);
     }
     
@@ -239,5 +248,41 @@ namespace nyom {
     }
     tau["3"].write(npair,idx,pairs); 
     free(idx); free(pairs);
+
+    tau["uu"].read_local(&npair, &idx, &pairs);
+    for(int64_t i = 0; i < npair; ++i){
+      if(idx[i]==0) pairs[i] = std::complex<double>(1, 0);
+      if(idx[i]==1) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==2) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==3) pairs[i] = std::complex<double>(0, 0);
+    }
+    tau["uu"].write(npair,idx,pairs); 
+    
+    tau["dd"].read_local(&npair, &idx, &pairs);
+    for(int64_t i = 0; i < npair; ++i){
+      if(idx[i]==0) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==1) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==2) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==3) pairs[i] = std::complex<double>(1, 0);
+    }
+    tau["dd"].write(npair,idx,pairs); 
+    
+    tau["ud"].read_local(&npair, &idx, &pairs);
+    for(int64_t i = 0; i < npair; ++i){
+      if(idx[i]==0) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==1) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==2) pairs[i] = std::complex<double>(1, 0);
+      if(idx[i]==3) pairs[i] = std::complex<double>(0, 0);
+    }
+    tau["ud"].write(npair,idx,pairs); 
+    
+    tau["du"].read_local(&npair, &idx, &pairs);
+    for(int64_t i = 0; i < npair; ++i){
+      if(idx[i]==0) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==1) pairs[i] = std::complex<double>(1, 0);
+      if(idx[i]==2) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==3) pairs[i] = std::complex<double>(0, 0);
+    }
+    tau["du"].write(npair,idx,pairs); 
   }
 }
