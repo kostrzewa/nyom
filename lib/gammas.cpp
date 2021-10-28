@@ -206,7 +206,7 @@ namespace nyom {
   std::vector<std::string> i_tau;
 
   void init_taus(CTF::World& dw){
-    for( std::string t1 : { "1", "2", "3", "uu", "dd", "ud", "du" } ){
+    for( std::string t1 : { "1", "2", "3", "I", "uu", "dd", "ud", "du" } ){
       i_tau.push_back(t1);
     }
     
@@ -249,6 +249,16 @@ namespace nyom {
       if(idx[i]==3) pairs[i] = std::complex<double>(-1, 0);
     }
     tau["3"].write(npair,idx,pairs); 
+    free(idx); free(pairs);
+    
+    tau["I"].read_local(&npair,&idx,&pairs);
+    for(int64_t i = 0; i < npair; ++i){
+      if(idx[i]==0) pairs[i] = std::complex<double>(1, 0);
+      if(idx[i]==1) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==2) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==3) pairs[i] = std::complex<double>(1, 0);
+    }
+    tau["I"].write(npair,idx,pairs); 
     free(idx); free(pairs);
 
     tau["uu"].read_local(&npair, &idx, &pairs);
