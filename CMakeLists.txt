@@ -5,7 +5,7 @@ enable_language(CXX)
 enable_language(C)
 enable_language(Fortran)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set( MPI_HOME CACHE PATH "path to MPI library installation directory" )

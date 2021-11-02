@@ -145,8 +145,6 @@ namespace nyom {
   
     g["5"]["ab"] = (g["0"])["aI"] * (g["1"])["IJ"] * (g["2"])["JK"] * (g["3"])["Kb"];
 
-    ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ std::cout << s << std::endl; }))(g["5"]["aa"]);
-
     // actually fill the products with numbers, the signs have already been set above
     for( std::string g1 : { "0", "1", "2", "3", "5" } ){
       for( std::string g2 : { "0", "1", "2", "3", "5" } ){
@@ -206,7 +204,7 @@ namespace nyom {
   std::vector<std::string> i_tau;
 
   void init_taus(CTF::World& dw){
-    for( std::string t1 : { "1", "2", "3", "I", "uu", "dd", "ud", "du" } ){
+    for( std::string t1 : { "1", "2", "3", "I", "iI", "uu", "dd", "ud", "du" } ){
       i_tau.push_back(t1);
     }
     
@@ -259,6 +257,16 @@ namespace nyom {
       if(idx[i]==3) pairs[i] = std::complex<double>(1, 0);
     }
     tau["I"].write(npair,idx,pairs); 
+    free(idx); free(pairs);
+    
+    tau["iI"].read_local(&npair,&idx,&pairs);
+    for(int64_t i = 0; i < npair; ++i){
+      if(idx[i]==0) pairs[i] = std::complex<double>(0, 1);
+      if(idx[i]==1) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==2) pairs[i] = std::complex<double>(0, 0);
+      if(idx[i]==3) pairs[i] = std::complex<double>(0, 1);
+    }
+    tau["iI"].write(npair,idx,pairs); 
     free(idx); free(pairs);
 
     tau["uu"].read_local(&npair, &idx, &pairs);

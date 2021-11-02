@@ -26,6 +26,8 @@
 #include "PointSourcePropagator.hpp"
 #include "SpinColourPropagator.hpp"
 #include "MomentumTensor.hpp"
+#include "ScalarFieldVector.hpp"
+#include "ComplexMatrixField.hpp"
 
 #include "contractions.hpp"
 
@@ -97,17 +99,15 @@ int main(int argc, char ** argv) {
 
   bool read_props = core.input_node["read_props"].as<bool>();
   bool write_props = core.input_node["write_props"].as<bool>();
+  // prevent propagators from being overwritten
+  if(read_props) write_props = false;
 
   const int Nd = 4;
   const int Nc = 3;
 
-  int gauge_conf_id = conf_start;
-
   std::chrono::time_point<std::chrono::steady_clock> start;
   std::chrono::time_point<std::chrono::steady_clock> moment;
   std::chrono::duration<float> elapsed_seconds;
-
-  //nyom::init_gammas( core.geom.get_world() );
 
   constexpr int no_temp_spinor_fields = 3;
   spinor ** temp_field = NULL;
@@ -121,6 +121,8 @@ int main(int argc, char ** argv) {
   spinor * prop_inv = temp_field[1];
   spinor * prop_fill = temp_field[2];
 
+  double ** tmlqcd_scalar_field;
+
   // for now we don't  
   // std::random_device r;
   // std::mt19937 mt_gen(12345);
@@ -131,8 +133,20 @@ int main(int argc, char ** argv) {
   // std::uniform_int_distribution<int> ran_time_idx(0, Nt-1);
 
   nyom::PointSourcePropagator<2> S(core);
-  nyom::PointSourcePropagator<2> Stilde(core);
-  nyom::PointSourcePropagator<2> Stemp(core);
+  nyom::PointSourcePropagator<2> Sbar(core);
+
+  nyom::ScalarFieldVector<4> sf(core);
+  std::map< std::string, nyom::ComplexMatrixField<2,2> > theta;
+  std::map< std::string, nyom::ComplexMatrixField<2,2> > theta_tilde;
+
+  for( std::string theta_name : {"1", "2", "3"} ){
+    // man C++ sucks sometimes... our CTF::Tensor wrappers are currently not default constructible
+    // so we have to go the long way around to put them into a map
+    theta.emplace( std::piecewise_construct, std::forward_as_tuple(theta_name), 
+                                             std::forward_as_tuple(core) );
+    theta_tilde.emplace( std::piecewise_construct, std::forward_as_tuple(theta_name), 
+                                                   std::forward_as_tuple(core) );
+  }
 
   // unfortunately the way that sources are handled in tmLQCD is kind of brain-dead
   // with a global "SourceInfo" struct (instead of passing this as a parameter to the
@@ -144,9 +158,7 @@ int main(int argc, char ** argv) {
   int src_coords[4] = {0, 0, 0, 0};
 
   for(int gauge_conf_id = conf_start; gauge_conf_id <= conf_end; gauge_conf_id += conf_stride){
-    if(read_props) {
-      write_props = false; 
-    } else {
+    if( !read_props ){
       // read unsmeared gauge field
       tmLQCD_read_gauge(gauge_conf_id, 0);
       // read smeared gauge field
@@ -159,15 +171,32 @@ int main(int argc, char ** argv) {
     for(int iscalar = 0; iscalar < npergauge; iscalar++){
       const int scalar_idx = tmLQCD_compute_scalar_idx(imeas, iscalar, npergauge, nscalarstep);
 
-      if(!read_props){
-        tmLQCD_read_scalar_field(scalar_idx);
-      }
-      // TODO: smear scalar field for contractions
+      tmLQCD_read_scalar_field(scalar_idx);
+
+      tmLQCD_get_scalar_field_pointer(&tmlqcd_scalar_field);
+
+      sf.fill(tmlqcd_scalar_field);
+
+      // because nyom::ComplexMatrixField<nr,nc> is not default-constrible, we can't use
+      // the square brackets to access the elemetns of the corresponding map
+      // well... that's a design failure right there, but let's go with it for now
+
+      sw.reset();
+      theta.at("1")["ijtxyz"] = nyom::tau["1"]["ij"] * sf[0]["txyz"] + nyom::tau["iI"]["ij"] * sf[1]["txyz"]; 
+      theta_tilde.at("1")["ijtxyz"] = nyom::tau["1"]["ij"] * sf[0]["txyz"] - nyom::tau["iI"]["ij"] * sf[1]["txyz"];
+
+      theta.at("2")["ijtxyz"] = nyom::tau["2"]["ij"] * sf[0]["txyz"] + nyom::tau["iI"]["ij"] * sf[2]["txyz"]; 
+      theta_tilde.at("2")["ijtxyz"] = nyom::tau["2"]["ij"] * sf[0]["txyz"] - nyom::tau["iI"]["ij"] * sf[2]["txyz"];
+
+      theta.at("3")["ijtxyz"] = nyom::tau["3"]["ij"] * sf[0]["txyz"] + nyom::tau["iI"]["ij"] * sf[3]["txyz"]; 
+      theta_tilde.at("3")["ijtxyz"] = nyom::tau["3"]["ij"] * sf[0]["txyz"] - nyom::tau["iI"]["ij"] * sf[3]["txyz"]; 
+      sw.elapsed_print_and_reset("theta and theta_tilde field construction");
+
 
       for(int src_f : {UP,DOWN} ){
         for(int src_d = 0; src_d < 4; src_d++){
           for(int src_c = 0; src_c < 3; src_c++){
-            // this is so stupid
+            // this is so stupid as an interface...
             SourceInfo.ix = 3*src_d + src_c;
 
             for(int dagger_inv = 0; dagger_inv < 2; dagger_inv++){
@@ -202,20 +231,22 @@ int main(int argc, char ** argv) {
               if(dagger_inv == 0){
                 S.fill(prop_inv, src_d, src_c, src_f);
               } else{
-                Stilde.fill(prop_inv, src_d, src_c, src_f);
+                Sbar.fill(prop_inv, src_d, src_c, src_f);
               }
 
-            }
-          }
-        }
-      }
-      // take the complex conjugate transpose of Stilde
+            } // for(dagger_inv)
+          } // for(src_c)
+        } // for(src_d)
+      } // for(src_f)
+      // take the complex conjugate transpose of Sbar to get S(0,x)
       sw.reset();
-      ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Stilde["txyzijabfg"]);
-      Stilde["txyzijabfg"] = Stilde["txyzjibagf"];
-      sw.elapsed_print_and_reset("Conjugate transpose of Stilde");
+      ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sbar["txyzijabfg"]);
+      Sbar["txyzijabfg"] = Sbar["txyzjibagf"];
+      sw.elapsed_print_and_reset("Conjugate transpose of Sbar");
       
-      local_2pt(S, Stilde, core, gauge_conf_id, scalar_idx);
+      local_2pt(S, Sbar, core, gauge_conf_id, scalar_idx);
+      PDP(S, Sbar, theta, theta_tilde, core, gauge_conf_id, scalar_idx);
+
       sw.elapsed_print_and_reset("Local contractions");
     } // scalar field loop
   } // gauge conf loop
