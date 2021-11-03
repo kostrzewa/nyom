@@ -116,7 +116,7 @@ local_2pt(nyom::PointSourcePropagator<Nf> & S, nyom::PointSourcePropagator<Nf> &
       }
     }
   }
-  if(core.geom.get_myrank()) correls.close();
+  if(core.geom.get_myrank() == 0) correls.close();
 }
 
 template <int Nf>
@@ -190,6 +190,6 @@ PDP(nyom::PointSourcePropagator<Nf> & S, nyom::PointSourcePropagator<Nf> & Sbar,
       sw.elapsed_print_and_reset("Done.");
     }
   }
-  if(core.geom.get_myrank()) correls.close();
+  if(core.geom.get_myrank() == 0) correls.close();
 }
 
