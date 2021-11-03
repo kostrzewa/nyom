@@ -49,7 +49,7 @@ local_2pt(nyom::PointSourcePropagator<Nf> & S, nyom::PointSourcePropagator<Nf> &
 
   // we use the same set of gamma and isospin structures at source and sink
   // if we use different ones, the loops below need to be adjusted
-  const std::vector<std::string> g_src = {"5", "I", "0", "1", "2", "3", "05", "01", "02", "03"};
+  const std::vector<std::string> g_src = {"5", "I", "0", "1", "2", "3", "05", "15", "25", "35"};
   const std::vector<std::string> g_snk = g_src;
 
   const std::vector<std::string> t_src = {"1", "2", "3"};
@@ -154,16 +154,16 @@ PDP(nyom::PointSourcePropagator<Nf> & S, nyom::PointSourcePropagator<Nf> & Sbar,
 
   sw.reset();
 
-  for( size_t it_src = 0; it_src < t_src.size(); it_src++ ){
+  for( size_t it_snk = 0; it_snk < t_snk.size(); it_snk++ ){
     // Sbar has already been transposed, all multiplications
     // can proceed in the normal way and we take a regular scalar product
     // in the end
-    S1ir["txyzijabfg"] = nyom::g["Ip5"]["iK"] * S["txyzKLabfH"] * nyom::g["5"]["Lj"] * nyom::tau[ t_src[it_src] ]["Hg"];
-    S1il["txyzijabfg"] = nyom::g["Im5"]["iK"] * S["txyzKLabfH"] * nyom::g["5"]["Lj"] * nyom::tau[ t_src[it_src] ]["Hg"];
+    S2j["txyzijabfg"] = Sbar["txyzijabfH"] * theta.at( t_snk[it_snk] )["Hgtxyz"];
+    S2j_tilde["txyzijabfg"] = Sbar["txyzijabfH"] * theta_tilde.at( t_snk[it_snk] )["Hgtxyz"];
 
-    for( size_t it_snk = it_src; it_snk < t_snk.size(); it_snk++ ){
-      S2j["txyzijabfg"] = Sbar["txyzijabfH"] * theta.at( t_snk[it_snk] )["Hgtxyz"];
-      S2j_tilde["txyzijabfg"] = Sbar["txyzijabfH"] * theta_tilde.at( t_snk[it_snk] )["Hgtxyz"];
+    for( size_t it_src = it_snk; it_src < t_src.size(); it_src++ ){
+      S1ir["txyzijabfg"] = nyom::g["Ip5"]["iK"] * S["txyzKLabfH"] * nyom::g["5"]["Lj"] * nyom::tau[ t_src[it_src] ]["Hg"];
+      S1il["txyzijabfg"] = nyom::g["Im5"]["iK"] * S["txyzKLabfH"] * nyom::g["5"]["Lj"] * nyom::tau[ t_src[it_src] ]["Hg"];
 
       std::stringstream cname;
       cname << "t_snk" << t_snk[it_snk] << "-t_src" << t_src[it_src];

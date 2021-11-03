@@ -58,7 +58,9 @@ namespace nyom {
     g["TwistPlus"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gTwistPlus");
     g["TwistMinus"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gTwistMinus");
     g["C"] = CTF::Tensor<std::complex<double> >(2, gamma_sizes, gamma_shapes, dw, "gC");
-  
+
+
+    // fix the signs of a bunch of gamma structures under daggering  
     g0_sign["I"] = 1.0;
     g0_sign["iI"] = 1.0;
     g0_sign["0"] = 1.0;
