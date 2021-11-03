@@ -275,7 +275,7 @@ int main(int argc, char ** argv) {
       Sbar["txyzijabfg"] = Sbar["txyzjibagf"];
       sw.elapsed_print_and_reset("Conjugate transpose of Sbar");
       
-      //local_2pt(S, Sbar, core, gauge_conf_id, scalar_idx);
+      local_2pt(S, Sbar, core, gauge_conf_id, scalar_idx);
       PDP(S, Sbar, theta, theta_tilde, core, gauge_conf_id, scalar_idx);
 
       sw.elapsed_print_and_reset("Local contractions");
