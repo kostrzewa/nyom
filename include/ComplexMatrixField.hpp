@@ -58,61 +58,6 @@ public:
     return *this;
   }
 
-  // BaKo: comment out fill function copied from ScalarFieldVector (2021-11-02)
-  //void fill(const double * const * const scalar_field){
-
-  //  const int Nt = core.input_node["Nt"].as<int>();
-  //  const int Nx = core.input_node["Nx"].as<int>();
-  //  const int Ny = core.input_node["Ny"].as<int>();
-  //  const int Nz = core.input_node["Nz"].as<int>();
-
-  //  const int lt = core.geom.tmlqcd_lat.T;
-  //  const int lx = core.geom.tmlqcd_lat.LX;
-  //  const int ly = core.geom.tmlqcd_lat.LY;
-  //  const int lz = core.geom.tmlqcd_lat.LZ;
-
-  //  const int local_volume = ly * lx * ly * lz;
-
-  //  nyom::Stopwatch sw(core.geom.get_nyom_comm());
-  //  std::vector<int64_t> indices(local_volume);
-
-  //  for(int comp = 0; comp < n_components; ++comp){
-  //    int64_t counter = 0;
-  //    // The scalar field on the tmLQCD side is a two-dim array
-  //    // with the scalar component running slowest and then
-  //    // (slowest to fastest) TXYZ
-  //    // On the other hand, the CTF::Tensor has the ordering
-  //    // given by the index translation below, with the component
-  //    // running fastest.
-  //    for(int64_t t = 0; t < core.geom.tmlqcd_lat.T; ++t){
-  //      int64_t gt = ly * core.geom.tmlqcd_mpi.proc_coords[0] + t;
-
-  //      for(int64_t x = 0; x < core.geom.tmlqcd_lat.LX; ++x){
-  //        int64_t gx = lx * core.geom.tmlqcd_mpi.proc_coords[1] + x;
-
-  //        for(int64_t y = 0; y < core.geom.tmlqcd_lat.LY; ++y){
-  //          int64_t gy = ly * core.geom.tmlqcd_mpi.proc_coords[2] + y;
-
-  //          for(int64_t z = 0; z < core.geom.tmlqcd_lat.LZ; ++z){
-  //            int64_t gz = lz * core.geom.tmlqcd_mpi.proc_coords[3] + z;
-  //            
-  //            indices[counter] = gt    *             +
-  //                               gx    * (Nt)        +
-  //                               gy    * (Nt*Nx)     +
-  //                               gz    * (Nt*Nx*Ny);
-  //            counter++;
-  //          }
-  //        }
-  //      }
-  //    }
-  //    // it is not at all guaranteed that this will always work due to possible padding
-  //    // techically, we should allocate a temporary buffer and extract the components from
-  //    // the struct
-  //    tensor[comp].write(counter, indices.data(), reinterpret_cast<const double * const >(&scalar_field[comp][0]) );
-  //  }
-  //  sw.elapsed_print("ComplexMatrixField fill");
-  //}
-
   // by overloading the square bracket operator, we can give convenient access to the underlying
   // tensor
   CTF::Idx_Tensor operator[](const char * idx_map)

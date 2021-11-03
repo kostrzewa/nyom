@@ -85,7 +85,10 @@ int main(int argc, char ** argv) {
   const int np = core.geom.get_Nranks();
 
   const int Nt = core.input_node["Nt"].as<int>();
-  const int Ns = core.input_node["Nx"].as<int>();
+  const int Nx = core.input_node["Nx"].as<int>();
+  const int Ny = core.input_node["Ny"].as<int>();
+  const int Nz = core.input_node["Nz"].as<int>();
+
   const int conf_start = core.input_node["conf_start"].as<int>();
   const int conf_stride = core.input_node["conf_stride"].as<int>();
   const int conf_end = core.input_node["conf_end"].as<int>();
@@ -123,7 +126,9 @@ int main(int argc, char ** argv) {
 
   double ** tmlqcd_scalar_field;
 
-  // for now we don't  
+  // BaKo 2021-11-02 for now we don't use a random time slice or random
+  // x coordinate
+  //////////////////////// 
   // std::random_device r;
   // std::mt19937 mt_gen(12345);
 
@@ -131,6 +136,7 @@ int main(int argc, char ** argv) {
   // std::uniform_int_distribution<int> ran_space_idx(0, Ns-1);
   // // uniform distribution in time coordinates
   // std::uniform_int_distribution<int> ran_time_idx(0, Nt-1);
+  /////////////////////////
 
   nyom::PointSourcePropagator<2> S(core);
   nyom::PointSourcePropagator<2> Sbar(core);
@@ -192,6 +198,27 @@ int main(int argc, char ** argv) {
       theta_tilde.at("3")["ijtxyz"] = nyom::tau["3"]["ij"] * sf[0]["txyz"] - nyom::tau["iI"]["ij"] * sf[3]["txyz"]; 
       sw.elapsed_print_and_reset("theta and theta_tilde field construction");
 
+      // BaKo 2021-11-02 debug to make sure that the scalar field is conistent
+      ////////////////////////
+      // nyom::ComplexMatrixField<2,2> test(core);
+      // test["ijtxyz"] = nyom::tau["I"]["ij"] * sf[0]["txyz"];
+      //
+      // 
+      // int64_t test_nval;
+      // std::complex<double> * test_values;
+      // test.tensor.read_all(&test_nval, &test_values);
+
+      // int64_t nval;
+      // std::complex<double> * values;
+      // sf[0].read_all(&nval, &values);
+
+      // if( rank == 0 ){
+      //   for(size_t i = 0; i < test_nval; i++){
+      //     std::cout << "sf: " << values[i/4] << " test: " << test_values[i] << std::endl;
+      //   }
+      // }
+      // free(values); free(test_values);
+      //////////////////////////////
 
       for(int src_f : {UP,DOWN} ){
         for(int src_d = 0; src_d < 4; src_d++){
@@ -200,7 +227,10 @@ int main(int argc, char ** argv) {
             SourceInfo.ix = 3*src_d + src_c;
 
             for(int dagger_inv = 0; dagger_inv < 2; dagger_inv++){
-              printf0("Performing inversion for gauge: %d scalar: %d f: %d, d: %d c: %d, dagger: %d\n",
+              const char * const inv_string = "Performing inversion";
+              const char * const read_string = "Reading propagators";
+              printf0("%s for gauge: %d scalar: %d f: %d, d: %d c: %d, dagger: %d\n",
+                      read_props ? read_string : inv_string,
                       gauge_conf_id, scalar_idx, src_f, src_d, src_c, dagger_inv); 
               if(!read_props){
 
@@ -238,13 +268,14 @@ int main(int argc, char ** argv) {
           } // for(src_c)
         } // for(src_d)
       } // for(src_f)
+
       // take the complex conjugate transpose of Sbar to get S(0,x)
       sw.reset();
       ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sbar["txyzijabfg"]);
       Sbar["txyzijabfg"] = Sbar["txyzjibagf"];
       sw.elapsed_print_and_reset("Conjugate transpose of Sbar");
       
-      local_2pt(S, Sbar, core, gauge_conf_id, scalar_idx);
+      //local_2pt(S, Sbar, core, gauge_conf_id, scalar_idx);
       PDP(S, Sbar, theta, theta_tilde, core, gauge_conf_id, scalar_idx);
 
       sw.elapsed_print_and_reset("Local contractions");

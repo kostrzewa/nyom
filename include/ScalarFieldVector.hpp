@@ -62,10 +62,12 @@ public:
     const int ly = core.geom.tmlqcd_lat.LY;
     const int lz = core.geom.tmlqcd_lat.LZ;
 
-    const int local_volume = ly * lx * ly * lz;
+    const int local_volume = lt * lx * ly * lz;
 
     nyom::Stopwatch sw(core.geom.get_nyom_comm());
     std::vector<int64_t> indices(local_volume);
+
+    std::vector<complex<double>> copy(local_volume);
 
     for(int comp = 0; comp < n_components; ++comp){
       int64_t counter = 0;
@@ -75,43 +77,53 @@ public:
       // On the other hand, the CTF::Tensor has the ordering
       // given by the index translation below, with the component
       // running fastest.
-      for(int64_t t = 0; t < core.geom.tmlqcd_lat.T; ++t){
-        int64_t gt = ly * core.geom.tmlqcd_mpi.proc_coords[0] + t;
+      
+      // we need to store the scalar field as complex because
+      // of the way that CTF accesses memory in mixed
+      // type expressions (which makes them incorrect)
+      #pragma omp parallel for
+      for(int i = 0; i < local_volume; ++i){
+        copy[i] = scalar_field[comp][i];
+      }
+     
 
-        for(int64_t x = 0; x < core.geom.tmlqcd_lat.LX; ++x){
+      for(int64_t t = 0; t < lt; ++t){
+        int64_t gt = lt * core.geom.tmlqcd_mpi.proc_coords[0] + t;
+
+        for(int64_t x = 0; x < lx; ++x){
           int64_t gx = lx * core.geom.tmlqcd_mpi.proc_coords[1] + x;
 
-          for(int64_t y = 0; y < core.geom.tmlqcd_lat.LY; ++y){
+          for(int64_t y = 0; y < ly; ++y){
             int64_t gy = ly * core.geom.tmlqcd_mpi.proc_coords[2] + y;
 
-            for(int64_t z = 0; z < core.geom.tmlqcd_lat.LZ; ++z){
+            for(int64_t z = 0; z < lz; ++z){
               int64_t gz = lz * core.geom.tmlqcd_mpi.proc_coords[3] + z;
-              
-              indices[counter] = gt    *             +
-                                 gx    * (Nt)        +
-                                 gy    * (Nt*Nx)     +
-                                 gz    * (Nt*Nx*Ny);
+      
+              indices[counter] = gt               +
+                                 gx * (Nt)        +
+                                 gy * (Nt*Nx)     +
+                                 gz * (Nt*Nx*Ny);
               counter++;
             }
           }
         }
       }
+
       // it is not at all guaranteed that this will always work due to possible padding
       // techically, we should allocate a temporary buffer and extract the components from
       // the struct
-      tensor[comp].write(counter, indices.data(), reinterpret_cast<const double * const >(&scalar_field[comp][0]) );
+      tensor[comp].write(counter, indices.data(), copy.data() );
     }
     sw.elapsed_print("ScalarFieldVector fill");
   }
 
-  // by overloading the square bracket operator, we can give convenient access to the underlying
-  // tensor
-  CTF::Tensor<double> & operator[](const size_t comp)
+  // overload to get at the individual components of the tensor
+  CTF::Tensor< std::complex<double> > & operator[](const size_t comp)
   {
     return tensor[comp];
   }
 
-  std::array<CTF::Tensor< double >, n_components> tensor;
+  std::array<CTF::Tensor< std::complex<double> >, n_components> tensor;
   
   int sizes[SFV_NDIM];
   int shapes[SFV_NDIM];
@@ -129,7 +141,7 @@ private:
     sizes[SFV_DIM_Y] = core.input_node["Ny"].as<int>();
     sizes[SFV_DIM_Z] = core.input_node["Nz"].as<int>();
     for(size_t comp = 0; comp < n_components; comp++){
-      tensor[comp] = CTF::Tensor<double>(SFV_NDIM, sizes, shapes, core.geom.get_world(), "ScalarFieldVector");
+      tensor[comp] = CTF::Tensor< std::complex<double> >(SFV_NDIM, sizes, shapes, core.geom.get_world(), "ScalarFieldVector");
     }
   }
 };

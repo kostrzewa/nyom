@@ -158,12 +158,12 @@ PDP(nyom::PointSourcePropagator<Nf> & S, nyom::PointSourcePropagator<Nf> & Sbar,
     // Sbar has already been transposed, all multiplications
     // can proceed in the normal way and we take a regular scalar product
     // in the end
-    S1ir["txyzijabfg"] = nyom::g["Ip5"]["iK"] * S["txyzKjabfH"] * nyom::tau[ t_src[it_src] ]["Hg"];
-    S1il["txyzijabfg"] = nyom::g["Im5"]["iK"] * S["txyzKjabfH"] * nyom::tau[ t_src[it_src] ]["Hg"];
+    S1ir["txyzijabfg"] = nyom::g["Ip5"]["iK"] * S["txyzKLabfH"] * nyom::g["5"]["Lj"] * nyom::tau[ t_src[it_src] ]["Hg"];
+    S1il["txyzijabfg"] = nyom::g["Im5"]["iK"] * S["txyzKLabfH"] * nyom::g["5"]["Lj"] * nyom::tau[ t_src[it_src] ]["Hg"];
 
     for( size_t it_snk = it_src; it_snk < t_snk.size(); it_snk++ ){
-      S2j["txyzijabfg"] = S["txyzijabfH"] * theta.at( t_snk[it_snk] )["Hgtxyz"];
-      S2j_tilde["txyzijabfg"] = S["txyzijabfH"] * theta_tilde.at( t_snk[it_snk] )["Hgtxyz"];
+      S2j["txyzijabfg"] = Sbar["txyzijabfH"] * theta.at( t_snk[it_snk] )["Hgtxyz"];
+      S2j_tilde["txyzijabfg"] = Sbar["txyzijabfH"] * theta_tilde.at( t_snk[it_snk] )["Hgtxyz"];
 
       std::stringstream cname;
       cname << "t_snk" << t_snk[it_snk] << "-t_src" << t_src[it_src];
