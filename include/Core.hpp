@@ -144,7 +144,7 @@ class Core {
       }
       filename += "." + logtype_to_string(type);
       
-      std::ofstream file(filename, ios::app);
+      std::ofstream file(filename, std::ios::app);
       file << msg;
       file.close();
     }

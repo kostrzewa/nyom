@@ -94,16 +94,12 @@ int main(int argc, char ** argv) {
 
   nyom::init_gammas( core.geom.get_world() );
 
-  spinor ** temp_field = NULL;
-  init_solver_field(&temp_field,VOLUMEPLUSRAND,3);
+  // TODO use unique_ptr swap to deal with prop_inv, prop_fill and prop_tmp
+  std::vector< std::complex<double> > src_spinor(4*3*VOLUME);
+  std::vector< std::complex<double> > prop_inv(4*3*VOLUME);
+  std::vector< std::complex<double> > prop_fill(4*3*VOLUME);
 
-  spinor ** temp_eo_spinors = NULL;
-  init_solver_field(&temp_eo_spinors,VOLUME/2,2);
-
-  spinor * src_spinor = temp_field[2];
-  spinor * prop_inv = temp_field[0];
-  spinor * prop_fill = temp_field[1];
-  spinor * prop_tmp;
+  std::vector< std::complex<double> > * prop_tmp;
 
   // read propagators from file(s)? if yes, don't need to load gauge field
   bool read = false;
@@ -122,10 +118,10 @@ int main(int argc, char ** argv) {
   // uniform distribution in time coordinates
   std::uniform_int_distribution<int> ran_time_idx(0, Nt-1);
 
-  std::vector<nyom::PointSourcePropagator> props;
+  std::vector< nyom::PointSourcePropagator<1> > props;
   props.emplace_back(core); // storage for "up" propagator
 
-  nyom::PointSourcePropagator Sconj(core);
+  nyom::PointSourcePropagator<1> Sconj(core);
   nyom::SpinColourPropagator Ssnk(core);
   nyom::SpinColourPropagator Ssrc(core);
 
@@ -162,15 +158,13 @@ int main(int argc, char ** argv) {
                 (nyom_threads != 1 && omp_get_thread_num() == 0) ){
               printf0("Thread id %d of %d doing inversion\n", omp_get_thread_num(), omp_get_num_threads());
               if(read == false){
-                full_source_spinor_field_point(temp_field[2], src_d, src_c, src_coords); 
-                tmLQCD_invert((double*)prop_inv,
-                              (double*)src_spinor,
+                tmLQCD_full_source_spinor_field_point((double*)(src_spinor.data()), src_d, src_c, src_coords); 
+                tmLQCD_invert((double*)(prop_inv.data()),
+                              (double*)(src_spinor.data()),
                               flav_idx,
                               0);
 
                 if(write){
-                  convert_lexic_to_eo(temp_eo_spinors[0], temp_eo_spinors[1], prop_inv);
-                  WRITER *writer = NULL;
                   char fname[200];
                   snprintf(fname,
                            200,
@@ -181,9 +175,7 @@ int main(int argc, char ** argv) {
                            src_coords[1],
                            src_coords[2],
                            src_coords[3]);
-                  construct_writer(&writer, fname, 1);
-                  write_spinor(writer, &temp_eo_spinors[0], &temp_eo_spinors[1], 1, 64);
-                  destruct_writer(writer);
+                  tmLQCD_write_spinor((double*)(prop_inv.data()), fname, 1, 1);
                 }
               
               }else{
@@ -197,8 +189,7 @@ int main(int argc, char ** argv) {
                          src_coords[1],
                          src_coords[2],
                          src_coords[3]);
-                read_spinor(temp_eo_spinors[0],temp_eo_spinors[1], fname, (int)(src_d*Nc+src_c) );
-                convert_eo_to_lexic(prop_inv, temp_eo_spinors[0], temp_eo_spinors[1]);
+                tmLQCD_read_spinor((double*)prop_inv.data(), fname, (int)(src_d*Nc+src_c) );
               }
             }
           

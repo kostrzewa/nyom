@@ -69,7 +69,7 @@ public:
     return tensor[idx_map];
   }
 
-  CTF::Tensor< complex<double> > tensor;
+  CTF::Tensor< std::complex<double> > tensor;
   int src_coords[4];
 
 private:
@@ -87,7 +87,7 @@ private:
     sizes[SCP_DIM_D_SRC] = 4;
     sizes[SCP_DIM_C_SNK] = 3;
     sizes[SCP_DIM_C_SRC] = 3;
-    tensor = CTF::Tensor< complex<double> >(5, sizes, shapes, core.geom.get_world(), "SpinColourPropagator" );
+    tensor = CTF::Tensor< std::complex<double> >(5, sizes, shapes, core.geom.get_world(), "SpinColourPropagator" );
   }
 };
 

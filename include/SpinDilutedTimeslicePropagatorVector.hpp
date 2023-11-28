@@ -51,7 +51,7 @@ public:
   // we don't want this to be default-constructible
   SpinDilutedTimesliceSourceVector() = delete;
 
-  void fill(const spinor * const source,
+  void fill(const double * const source,
             const int dsrc_in,
             const int tsrc_in){
     dsrc = dsrc_in;

@@ -69,7 +69,7 @@ public:
     src_coords[3] = src_coords_in[3];
   }
 
-  void fill(const spinor * const propagator,
+  void fill(const double * const propagator,
             const int src_d,
             const int src_c,
             const int src_f){
@@ -128,7 +128,7 @@ public:
     // it is not at all guaranteed that this will always work due to possible padding
     // techically, we should allocate a temporary buffer and extract the components from
     // the struct
-    tensor.write(counter, indices.data(), reinterpret_cast<const complex<double>*>(&propagator[0]) );
+    tensor.write(counter, indices.data(), reinterpret_cast<const std::complex<double>*>(&propagator[0]) );
     sw.elapsed_print("PointSourcePropagator fill");
   }
 
@@ -139,7 +139,7 @@ public:
     return tensor[idx_map];
   }
 
-  CTF::Tensor< complex<double> > tensor;
+  CTF::Tensor< std::complex<double> > tensor;
   int src_coords[4];
   int sizes[PSP_NDIM];
   int shapes[PSP_NDIM];
@@ -162,7 +162,7 @@ private:
     sizes[PSP_DIM_C_SRC] = 3;
     sizes[PSP_DIM_F_SNK] = Nf;
     sizes[PSP_DIM_F_SRC] = Nf;
-    tensor = CTF::Tensor< complex<double> >(PSP_NDIM, sizes, shapes, core.geom.get_world(), "PointSourcePropagator" );
+    tensor = CTF::Tensor< std::complex<double> >(PSP_NDIM, sizes, shapes, core.geom.get_world(), "PointSourcePropagator" );
   }
 };
 

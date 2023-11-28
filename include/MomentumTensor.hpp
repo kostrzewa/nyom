@@ -70,7 +70,7 @@ public:
     const double py_pi_ov_two_Ny = 0.5*momenta[1]*nyom::pi/Ny;
     const double pz_pi_ov_two_Nz = 0.5*momenta[2]*nyom::pi/Nz;
 
-    complex<double> *values;
+    std::complex<double> *values;
     int64_t *indices;
     int64_t nval;
     tensor.read_local(&nval, &indices, &values);
@@ -97,7 +97,7 @@ public:
     return tensor[idx_map];
   }
 
-  CTF::Tensor< complex<double> > tensor;
+  CTF::Tensor< std::complex<double> > tensor;
 
 private:
   const nyom::Core & core;
@@ -112,7 +112,7 @@ private:
     sizes[MOMT_DIM_X] = core.input_node["Nx"].as<int>();
     sizes[MOMT_DIM_Y] = core.input_node["Ny"].as<int>();
     sizes[MOMT_DIM_Z] = core.input_node["Nz"].as<int>();
-    tensor = CTF::Tensor< complex<double> >(3, sizes, shapes, core.geom.get_world(), "MomentumTensor" );
+    tensor = CTF::Tensor< std::complex<double> >(3, sizes, shapes, core.geom.get_world(), "MomentumTensor" );
   }
 };
 

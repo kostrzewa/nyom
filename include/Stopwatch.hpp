@@ -88,7 +88,7 @@ class Stopwatch {
     nyom::duration elapsed_print(const char* const name){
       nyom::duration duration = elapsed();
       if(rank==0){ 
-        cout << name << " " << duration.mean 
+        std::cout << name << " " << duration.mean 
           << " seconds" << std::endl
           << "min(" << duration.min << ") max(" 
           << duration.max << ")" << std::endl;
