@@ -120,20 +120,22 @@ private:
   /**
    * @brief build a vector of shift matrices (2-index tensors). For shifts
    * by a single lattice site in negative or positive direction in each
-   * of the three spatial dimensions as given in shift_dimension_t ordering.
+   * of the four dimensions as given in shift_dimension_t ordering.
    *
    * @param Nx global lattice extent in X direction
    * @param Ny global lattice extent in Y direciton
    * @param Nz global lattice extent in Z direction
+   * @param Nt global lattice extent in T direction
    * @param world CTF::World from the currently defined geometry
    *
    * @return vector of shift tensors initialised to produce displacements
    * by a single lattice spacing 
    */
   std::vector< CTF::Tensor< complex<double> > > make_shifts(const int Nx,
-                                                 const int Ny,
-                                                 const int Nz,
-                                                 CTF::World &world){
+                                                            const int Ny,
+                                                            const int Nz,
+                                                            const int Nt,
+                                                            CTF::World &world){
     const int shapes[2] = {NS, NS};
     int sizes[2];
     int dim_sizes[4] = { Nx, Ny, Nz, Nt };
