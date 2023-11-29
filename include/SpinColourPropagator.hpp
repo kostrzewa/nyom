@@ -40,8 +40,12 @@ typedef enum SpinColourPropagator_dims_t {
   SCP_DIM_D_SRC,
   SCP_DIM_C_SNK,
   SCP_DIM_C_SRC,
+  SCP_DIM_F_SNK,
+  SCP_DIM_F_SRC,
+  SCP_NDIM
 } SpinColourPropagator_dims_t;
 
+template <int Nf = 1>
 class SpinColourPropagator
 {
 public:
@@ -74,12 +78,12 @@ public:
 
 private:
   const nyom::Core & core;
-  int shapes[5];
-  int sizes[5];
+  int shapes[SCP_NDIM];
+  int sizes[SCP_NDIM];
 
   void init()
   {
-    for(int d = 0; d < 5; ++d){
+    for(int d = 0; d < SCP_NDIM; ++d){
       shapes[d] = NS;
     }
     sizes[SCP_DIM_T_SNK] = core.input_node["Nt"].as<int>();
@@ -87,7 +91,9 @@ private:
     sizes[SCP_DIM_D_SRC] = 4;
     sizes[SCP_DIM_C_SNK] = 3;
     sizes[SCP_DIM_C_SRC] = 3;
-    tensor = CTF::Tensor< std::complex<double> >(5, sizes, shapes, core.geom.get_world(), "SpinColourPropagator" );
+    sizes[SCP_DIM_F_SNK] = Nf;
+    sizes[SCP_DIM_F_SRC] = Nf;
+    tensor = CTF::Tensor< std::complex<double> >(SCP_NDIM, sizes, shapes, core.geom.get_world(), "SpinColourPropagator" );
   }
 };
 

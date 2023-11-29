@@ -27,6 +27,7 @@
 #include <chrono>
 #include <random>
 #include <iomanip>
+#include <memory>
 
 #include "gammas.hpp"
 
@@ -94,12 +95,9 @@ int main(int argc, char ** argv) {
 
   nyom::init_gammas( core.geom.get_world() );
 
-  // TODO use unique_ptr swap to deal with prop_inv, prop_fill and prop_tmp
-  std::vector< std::complex<double> > src_spinor(4*3*VOLUME);
-  std::vector< std::complex<double> > prop_inv(4*3*VOLUME);
-  std::vector< std::complex<double> > prop_fill(4*3*VOLUME);
-
-  std::vector< std::complex<double> > * prop_tmp;
+  std::unique_ptr<double> src_spinor(new double[2*4*3*VOLUME]);
+  std::unique_ptr<double> prop_inv(new double[2*4*3*VOLUME]);
+  std::unique_ptr<double> prop_fill(new double[2*4*3*VOLUME]);
 
   // read propagators from file(s)? if yes, don't need to load gauge field
   bool read = false;
@@ -111,26 +109,20 @@ int main(int argc, char ** argv) {
   }
   
   std::random_device r;
-  std::mt19937 mt_gen(12345);
+  std::mt19937 mt_gen(core.input_node["seed"].as<int>());
 
   // uniform distribution in space coordinates
   std::uniform_int_distribution<int> ran_space_idx(0, Ns-1);
   // uniform distribution in time coordinates
   std::uniform_int_distribution<int> ran_time_idx(0, Nt-1);
 
-  std::vector< nyom::PointSourcePropagator<1> > props;
-  props.emplace_back(core); // storage for "up" propagator
-
+  nyom::PointSourcePropagator<1> S(core);
   nyom::PointSourcePropagator<1> Sconj(core);
-  nyom::SpinColourPropagator Ssnk(core);
-  nyom::SpinColourPropagator Ssrc(core);
+
+  nyom::PointSourcePropagator<1> Ssnk(core);
+  nyom::PointSourcePropagator<1> Ssrc(core);
 
   sw.reset();
-  nyom::MomentumTensor mom_src(core,
-                               {1, 0, 0});
-  nyom::MomentumTensor mom_snk(core,
-                               {-1, 0, 0});
-  sw.elapsed_print("Momentum tensor creation");
 
   for(int src_id = 0; src_id < n_src; src_id++){
     int src_coords[4];
@@ -149,18 +141,18 @@ int main(int argc, char ** argv) {
               core.geom.get_nyom_comm());
 
     for(int flav_idx : {UP} ){
-      props[flav_idx].set_src_coords(src_coords);
-      for(size_t src_d = 0; src_d < Nd; ++src_d){
-        for(size_t src_c = 0; src_c < Nc; ++src_c){
+      S.set_src_coords(src_coords);
+      for(int src_d = 0; src_d < Nd; ++src_d){
+        for(int src_c = 0; src_c < Nc; ++src_c){
           #pragma omp parallel num_threads(nyom_threads)
           {
             if( (nyom_threads == 1) ||
                 (nyom_threads != 1 && omp_get_thread_num() == 0) ){
               printf0("Thread id %d of %d doing inversion\n", omp_get_thread_num(), omp_get_num_threads());
               if(read == false){
-                tmLQCD_full_source_spinor_field_point((double*)(src_spinor.data()), src_d, src_c, src_coords); 
-                tmLQCD_invert((double*)(prop_inv.data()),
-                              (double*)(src_spinor.data()),
+                tmLQCD_full_source_spinor_field_point(src_spinor.get(), src_d, src_c, src_coords); 
+                tmLQCD_invert(prop_inv.get(),
+                              src_spinor.get(),
                               flav_idx,
                               0);
 
@@ -175,7 +167,7 @@ int main(int argc, char ** argv) {
                            src_coords[1],
                            src_coords[2],
                            src_coords[3]);
-                  tmLQCD_write_spinor((double*)(prop_inv.data()), fname, 1, 1);
+                  tmLQCD_write_spinor(prop_inv.get(), fname, 1, 1);
                 }
               
               }else{
@@ -189,7 +181,7 @@ int main(int argc, char ** argv) {
                          src_coords[1],
                          src_coords[2],
                          src_coords[3]);
-                tmLQCD_read_spinor((double*)prop_inv.data(), fname, (int)(src_d*Nc+src_c) );
+                tmLQCD_read_spinor(prop_inv.get(), fname, (int)(src_d*Nc+src_c) );
               }
             }
           
@@ -197,17 +189,16 @@ int main(int argc, char ** argv) {
             #pragma omp single
             {
               printf0("Thread %d switching pointers\n", omp_get_thread_num());
-              prop_tmp = prop_inv;
-              prop_inv = prop_fill;
-              prop_fill = prop_tmp;
+              prop_inv.swap(prop_fill);
             }
           
             if( (nyom_threads == 1) || 
                 (nyom_threads != 1 && omp_get_thread_num() == 1) ){ 
               printf0("Thread %d filling tensor\n", omp_get_thread_num());
-              props[flav_idx].fill(prop_fill,
-                                   src_d,
-                                   src_c);
+              S.fill(prop_fill.get(),
+                     src_d,
+                     src_c,
+                     flav_idx);
             }
           } // OpenMP parallel closing brace
         }
@@ -218,8 +209,8 @@ int main(int argc, char ** argv) {
     // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
     // below
     sw.reset();
-    Sconj["txyzijba"] = props[UP]["txyzijab"];
-    ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
+    Sconj["txyzijbafg"] = S["txyzijabfg"];
+    ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijabfg"]);
     sw.elapsed_print_and_reset("Complex conjugation and colour transpose");
 
     // perform contractions
@@ -229,24 +220,19 @@ int main(int argc, char ** argv) {
     
     flp.zero();
 
-    sw.reset();
-    Ssrc["tijab"] = mom_src["XYZ"] * props[UP]["tXYZijab"];
-    Ssnk["tijab"] = mom_snk["XYZ"] * Sconj["tXYZijab"];
-    sw.elapsed_print_and_reset("source and sink momentum projection");
-
     std::complex<double>* correl_values;
     int64_t correl_nval;
-    // many of these are non-sensical or zero, but for now, let's loop over all of them
+    // PP PA AP AA
     for( std::string g_src : {"5", "05"} ){
       for( std::string g_snk : {"5", "05"} ){
 
-        Ssrc["tijab"] = Ssrc["tiLab"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
+        Ssrc["txyzijabfg"] = S["txyziLabfg"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
         sw.elapsed_print_and_reset("source gamma insertion");
 
-        Ssnk["tijab"] = Ssnk["tLiab"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
+        Ssnk["txyzijabfg"] = Sconj["txyzLiabfg"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
         sw.elapsed_print_and_reset("sink gamma insertion");
 
-        C["t"] = Ssnk["tIJAB"] * Ssrc["tJIBA"];
+        C["t"] = Ssnk["tXYZIJABFG"] * Ssrc["tXYZJIBAGF"];
         measureFlopsPerSecond(sw.elapsed_print_and_reset("meson 2-pt function").mean,
                               flp, 
                               "meson 2-pt function",
@@ -280,7 +266,5 @@ int main(int argc, char ** argv) {
 
   MPI_Barrier( core.geom.get_nyom_comm() );
 
-  finalize_solver(temp_field,3);
-  finalize_solver(temp_eo_spinors,2);
   return 0;
 }

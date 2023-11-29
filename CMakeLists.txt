@@ -193,10 +193,12 @@ endif()
 include_directories(include)
 
 add_subdirectory(lib)
-add_subdirectory(fr_bsm3_2pt)
 add_subdirectory(peram_gen)
 add_subdirectory(meson_2pt)
 add_subdirectory(baryon_2pt)
 add_subdirectory(tests)
 add_subdirectory(manual_tests)
+
+## disable by default, belongs to a currently defunct project
+#add_subdirectory(fr_bsm3_2pt)
 
