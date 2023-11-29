@@ -84,15 +84,15 @@ public:
     const int local_volume = lt * lx * ly * lz;
 
     nyom::Stopwatch sw(core.geom.get_nyom_comm());
-    int64_t npair = 4*3*local_volume;
+    const int64_t npair = 4*3*local_volume;
     std::vector<int64_t> indices( npair );
-    int64_t counter = 0;
 
     // The propagator vector on the tmLQCD side is ordered
-    // (slowest to fastest) flavour TXYZ Dirac colour complex
+    // (slowest to fastest) flavour TXYZ Dirac colour complex  (space-time MPI-local)
     // On the other hand, the CTF::Tensor has the ordering
-    // given by the index translation below, with T
+    // given by the index translation below, with T (global!)
     // running fastest.
+    # pragma omp parallel for
     for(int64_t t = 0; t < lt; ++t){
       int64_t gt = lt*core.geom.tmlqcd_mpi.proc_coords[0] + t;
       for(int64_t x = 0; x < lx; ++x){
@@ -103,6 +103,13 @@ public:
             int64_t gz = lz*core.geom.tmlqcd_mpi.proc_coords[3] + z;
             for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
               for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
+                int64_t counter = snk_c                                  +
+                                  snk_d *  (3)                           +
+                                  z     *  (3*4)                         +
+                                  y     *  (3*4*lz)                      +
+                                  x     *  (3*4*lz*ly)                   +
+                                  t     *  (3*4*lz*ly*lx);
+
                 indices[counter] = gt                            +
                                    gx    * (Nt)                  +
                                    gy    * (Nt*Nx)               +
@@ -111,7 +118,6 @@ public:
                                    src_d * (Nt*Nx*Ny*Nz*4)       +
                                    snk_c * (Nt*Nx*Ny*Nz*4*4)     +
                                    src_c * (Nt*Nx*Ny*Nz*4*4*3);
-                counter++;
               }
             }
           }
@@ -121,7 +127,7 @@ public:
     // it is not at all guaranteed that this will always work due to possible padding
     // techically, we should allocate a temporary buffer and extract the components from
     // the struct
-    tensor.write(counter, indices.data(), reinterpret_cast<const std::complex<double>*>(&propagator[0]) );
+    tensor.write(npair, indices.data(), reinterpret_cast<const std::complex<double>*>(&propagator[0]) );
     sw.elapsed_print("PointSourcePropagator fill");
   }
 
