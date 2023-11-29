@@ -39,12 +39,7 @@ class Geometry {
     Geometry(int argc,
              char ** argv){
       
-      int thread_requested = MPI_THREAD_SERIALIZED;
-      int thread_provided;
-      MPI_Init_thread(&argc, &argv, thread_requested, &thread_provided);
-      if( thread_provided != thread_requested ){
-        throw std::runtime_error("Provided MPI thread level does not match requested thread level in MPI_Init_thread.\n");
-      }
+      tmLQCD_init_parallel_and_read_input(argc, argv, 1, "invert.input");
 
       int tm_init_state = tmLQCD_invert_init(argc,argv,1,0);
       if( tm_init_state != 0 ){
