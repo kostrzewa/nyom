@@ -116,11 +116,11 @@ int main(int argc, char ** argv) {
   // uniform distribution in time coordinates
   std::uniform_int_distribution<int> ran_time_idx(0, Nt-1);
 
-  nyom::PointSourcePropagator<1> S(core);
-  nyom::PointSourcePropagator<1> Sconj(core);
+  nyom::PointSourcePropagator S(core);
+  nyom::PointSourcePropagator Sconj(core);
 
-  nyom::PointSourcePropagator<1> Ssnk(core);
-  nyom::PointSourcePropagator<1> Ssrc(core);
+  nyom::PointSourcePropagator Ssnk(core);
+  nyom::PointSourcePropagator Ssrc(core);
 
   sw.reset();
 
@@ -197,8 +197,7 @@ int main(int argc, char ** argv) {
               printf0("Thread %d filling tensor\n", omp_get_thread_num());
               S.fill(prop_fill.get(),
                      src_d,
-                     src_c,
-                     flav_idx);
+                     src_c);
             }
           } // OpenMP parallel closing brace
         }
@@ -209,8 +208,8 @@ int main(int argc, char ** argv) {
     // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
     // below
     sw.reset();
-    Sconj["txyzijbafg"] = S["txyzijabfg"];
-    ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijabfg"]);
+    Sconj["txyzijba"] = S["txyzijab"];
+    ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
     sw.elapsed_print_and_reset("Complex conjugation and colour transpose");
 
     // perform contractions
@@ -226,13 +225,13 @@ int main(int argc, char ** argv) {
     for( std::string g_src : {"5", "05"} ){
       for( std::string g_snk : {"5", "05"} ){
 
-        Ssrc["txyzijabfg"] = S["txyziLabfg"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
+        Ssrc["txyzijab"] = S["txyziLab"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
         sw.elapsed_print_and_reset("source gamma insertion");
 
-        Ssnk["txyzijabfg"] = Sconj["txyzLiabfg"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
+        Ssnk["txyzijab"] = Sconj["txyzLiab"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
         sw.elapsed_print_and_reset("sink gamma insertion");
 
-        C["t"] = Ssnk["tXYZIJABFG"] * Ssrc["tXYZJIBAGF"];
+        C["t"] = Ssnk["tXYZIJAB"] * Ssrc["tXYZJIBA"];
         measureFlopsPerSecond(sw.elapsed_print_and_reset("meson 2-pt function").mean,
                               flp, 
                               "meson 2-pt function",
