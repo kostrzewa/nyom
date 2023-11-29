@@ -82,7 +82,7 @@ int main(int argc, char ** argv) {
   const int conf_start = core.input_node["conf_start"].as<int>();
   const int conf_stride = core.input_node["conf_stride"].as<int>();
   const int conf_end = core.input_node["conf_end"].as<int>();
-  const int n_src = core.input_node["n_src"].as<int>();
+  const int n_src = core.input_node["n_src_per_gauge"].as<int>();
 
   const int nyom_threads = core.input_node["threaded"].as<bool>() ? 2 : 1;
 

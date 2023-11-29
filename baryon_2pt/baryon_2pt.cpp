@@ -28,6 +28,7 @@
 #include <random>
 #include <iomanip>
 #include <complex>
+#include <memory>
 
 #include "gammas.hpp"
 #include "constexpr.hpp"
@@ -81,17 +82,6 @@ int main(int argc, char ** argv) {
 
   nyom::init_gammas( core.geom.get_world() );
 
-  spinor ** temp_field = NULL;
-  init_solver_field(&temp_field,VOLUMEPLUSRAND,3);
-
-  spinor ** temp_eo_spinors = NULL;
-  init_solver_field(&temp_eo_spinors,VOLUME/2,2);
-
-  spinor * src_spinor = temp_field[2];
-  spinor * prop_inv = temp_field[0];
-  spinor * prop_fill = temp_field[1];
-  spinor * prop_tmp;
-
   // read propagators from file(s)? if yes, don't need to load gauge field
   bool read = false;
   bool write = false;
@@ -104,10 +94,12 @@ int main(int argc, char ** argv) {
   // uniform distribution in time coordinates
   std::uniform_int_distribution<int> ran_time_idx(0, Nt-1);
 
-  std::vector<nyom::PointSourcePropagator> props;
+  // since our Dirac operator is flavour diagonal we use single flavour propagators
+  // but we have two of them, one for up and one for down
+  std::vector< nyom::PointSourcePropagator > props;
   props.emplace_back(core);
   props.emplace_back(core);
-
+  
   nyom::PointSourcePropagator up(core);
   nyom::PointSourcePropagator down(core);
   
@@ -129,6 +121,10 @@ int main(int argc, char ** argv) {
   nyom::SummedSpinPropagator C_translated(core);
 
   nyom::LeviCivita eps_abc(core, 3);
+
+  std::unique_ptr<double> src_spinor(new double[2*4*3*VOLUME]);
+  std::unique_ptr<double> prop_inv(new double[2*4*3*VOLUME]);
+  std::unique_ptr<double> prop_fill(new double[2*4*3*VOLUME]);
 
   // this can be elevated to include the source phase factor at some point
   double norm = 1.0/((double)Ns*Ns*Ns); 
@@ -173,15 +169,13 @@ int main(int argc, char ** argv) {
                   (nyom_threads != 1 && omp_get_thread_num() == 0) ){
                 printf0("Thread id %d of %d doing inversion\n", omp_get_thread_num(), omp_get_num_threads());
                 if(read == false){
-                  full_source_spinor_field_point(src_spinor, src_d, src_c, src_coords); 
-                  tmLQCD_invert((double*)prop_inv,
-                                (double*)src_spinor,
+                  tmLQCD_full_source_spinor_field_point(src_spinor.get(), src_d, src_c, src_coords); 
+                  tmLQCD_invert(prop_inv.get(),
+                                src_spinor.get(),
                                 flav_idx,
                                 0);
 
                   if(write){
-                    convert_lexic_to_eo(temp_eo_spinors[0], temp_eo_spinors[1], prop_inv);
-                    WRITER *writer = NULL;
                     char fname[200];
                     snprintf(fname,
                              200,
@@ -192,11 +186,8 @@ int main(int argc, char ** argv) {
                              src_coords[1],
                              src_coords[2],
                              src_coords[3]);
-                    construct_writer(&writer, fname, 1);
-                    write_spinor(writer, &temp_eo_spinors[0], &temp_eo_spinors[1], 1, 64);
-                    destruct_writer(writer);
+                    tmLQCD_write_spinor(prop_inv.get(), fname, 1, 1);
                   }
-                
                 }else{
                   char fname[200];
                   snprintf(fname,
@@ -208,8 +199,7 @@ int main(int argc, char ** argv) {
                            src_coords[1],
                            src_coords[2],
                            src_coords[3]);
-                  read_spinor(temp_eo_spinors[0],temp_eo_spinors[1], fname, (int)(src_d*Nc+src_c) );
-                  convert_eo_to_lexic(prop_inv, temp_eo_spinors[0], temp_eo_spinors[1]);
+                  tmLQCD_read_spinor(prop_inv.get(), fname, (int)(src_d*Nc+src_c));
                 }
               }
               
@@ -217,15 +207,13 @@ int main(int argc, char ** argv) {
               #pragma omp single
               {
                 printf0("Thread %d switching pointers\n", omp_get_thread_num());
-                prop_tmp = prop_inv;
-                prop_inv = prop_fill;
-                prop_fill = prop_tmp;
+                prop_inv.swap(prop_fill);
               }
             
               if( (nyom_threads == 1) || 
                   (nyom_threads != 1 && omp_get_thread_num() == 1) ){ 
                 printf0("Thread %d filling tensor\n", omp_get_thread_num());
-                props[flav_idx].fill(prop_fill,
+                props[flav_idx].fill(prop_fill.get(),
                                      src_d,
                                      src_c);
               }
@@ -318,7 +306,7 @@ int main(int argc, char ** argv) {
           sw.elapsed_print_and_reset("second term q3 construction");
          
           nsc["txyzipabe"] = eps_abc["abC"] * q1["txyzipCe"];
-          nsc2["txyzljaef"] = - q3["txyzljaG"] * eps_abc["GEF"];
+          nsc2["txyzljaef"] = - q3["txyzljaG"] * eps_abc["Gef"];
           // note there was an explicit sign change due to EFG -> GEF
           Cfull["txyzij"] -= nsc["txyziPABE"] * q2["txyzLPBF"] * nsc2["txyzLjAEF"];
           sw.elapsed_print_and_reset("second term three-quark contraction, colour anti-symmetrisation and accumulation");
@@ -395,7 +383,5 @@ int main(int argc, char ** argv) {
     } // loop over sources
   } // loop over configurations
 
-  finalize_solver(temp_field,3);
-  finalize_solver(temp_eo_spinors,2);
   return 0;
 }
