@@ -27,7 +27,8 @@
 namespace nyom {
 
 // this enum controls the ordering of the dimensions of the ColourDipolePropagator tensor
-// Ther ordering can be adjusted at will by simply adjusting the ordering here
+// Their ordering can be adjusted at will by simply adjusting the ordering here
+// however the index computation in the "push" and "fill" methods (if any) needs to be adjusted
 typedef enum ColourDipolePropagator_dims_t {
   CDP_DIM_T_SNK = 0,
   CDP_DIM_X_SNK,

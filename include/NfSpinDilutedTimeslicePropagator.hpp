@@ -27,51 +27,38 @@
 
 namespace nyom {
 
-// this enum controls the ordering of the dimensions of the NfPointSourcePropagator tensor
+// this enum controls the ordering of the dimensions of the NfSpinDilutedTimeslicePropagator tensor
 // Their ordering can be adjusted at will by simply adjusting the ordering here
 // however the index computation in the "push" and "fill" methods (if any) needs to be adjusted
-typedef enum NfPointSourcePropagator_dims_t {
-  NF_PSP_DIM_T_SNK = 0,
-  NF_PSP_DIM_X_SNK,
-  NF_PSP_DIM_Y_SNK,
-  NF_PSP_DIM_Z_SNK,
-  NF_PSP_DIM_D_SNK,
-  NF_PSP_DIM_D_SRC,
-  NF_PSP_DIM_C_SNK,
-  NF_PSP_DIM_C_SRC,
-  NF_PSP_DIM_F_SNK,
-  NF_PSP_DIM_F_SRC,
-  NF_PSP_NDIM
-} NfPointSourcePropagator_dims_t;
+typedef enum NfSpinDilutedTimeslicePropagator_dims_t {
+  NF_SDTSP_DIM_T_SNK = 0,
+  NF_SDTSP_DIM_X_SNK,
+  NF_SDTSP_DIM_Y_SNK,
+  NF_SDTSP_DIM_Z_SNK,
+  NF_SDTSP_DIM_D_SNK,
+  NF_SDTSP_DIM_D_SRC,
+  NF_SDTSP_DIM_C_SNK,
+  NF_SDTSP_DIM_F_SNK,
+  NF_SDTSP_DIM_F_SRC,
+  NF_SDTSP_NDIM
+} NfSpinDilutedTimeslicePropagator_dims_t;
 
 template <int Nf>
-class NfPointSourcePropagator
+class NfSpinDilutedTimeslicePropagator
 {
 public:
-  NfPointSourcePropagator(const nyom::Core &core_in) :
+  NfSpinDilutedTimeslicePropagator(const nyom::Core &core_in) :
     core(core_in)
   {
     init();
   }
 
   // we don't want this to be default-constructible
-  NfPointSourcePropagator() = delete;
+  NfSpinDilutedTimeslicePropagator() = delete;
 
-  void set_src_coords(const int src_coords_in[])
+  void set_src_ts(const int ts)
   {
-    src_coords[0] = src_coords_in[0];
-
-    src_coords[1] = src_coords_in[1];
-    src_coords[2] = src_coords_in[2];
-    src_coords[3] = src_coords_in[3];
-  }
-
-  void set_src_timeslice(const int ts)
-  {
-    src_coords[0] = ts;
-    src_coords[1] = 0;
-    src_coords[2] = 0;
-    src_coords[3] = 0;
+    src_ts = ts;
   }
 
   // because of the way that the doublet inversion interface is implemented, we will
@@ -79,9 +66,8 @@ public:
   // of course produces both
   void fill(double * propagator,
             const int snk_f,
-            const int src_d,
-            const int src_c,
-            const int src_f){
+            const int src_f,
+            const int src_d){
 
     const int Nt = core.input_node["Nt"].as<int>();
     const int Nx = core.input_node["Nx"].as<int>();
@@ -122,24 +108,22 @@ public:
               const int64_t gz = lz*pz + z;
               for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
                 for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
-                  const int64_t counter = snk_c                                  +
-                                          snk_d *  (3)                           +
-                                          z     *  (3*4)                         +
-                                          y     *  (3*4*lz)                      +
-                                          x     *  (3*4*lz*ly)                   +
-                                          t     *  (3*4*lz*ly*lx)                +
-                                          snk_f *  (3*4*lz*ly*lx*lt);
+                  const int64_t counter = snk_c                  +
+                                          snk_d *  (3)           +
+                                          z     *  (3*4)         +
+                                          y     *  (3*4*lz)      +
+                                          x     *  (3*4*lz*ly)   +
+                                          t     *  (3*4*lz*ly*lx);
                 
-                  indices[counter] = gt                               +
-                                     gx    * (Nt)                     +
-                                     gy    * (Nt*Nx)                  +
-                                     gz    * (Nt*Nx*Ny)               +
-                                     snk_d * (Nt*Nx*Ny*Nz)            +
-                                     src_d * (Nt*Nx*Ny*Nz*4)          +
-                                     snk_c * (Nt*Nx*Ny*Nz*4*4)        +
-                                     src_c * (Nt*Nx*Ny*Nz*4*4*3)      +
-                                     snk_f * (Nt*Nx*Ny*Nz*4*4*3*3)    +
-                                     src_f * (Nt*Nx*Ny*Nz*4*4*3*3*Nf);
+                  indices[counter] = gt                             +
+                                     gx    * (Nt)                   +
+                                     gy    * (Nt*Nx)                +
+                                     gz    * (Nt*Nx*Ny)             +
+                                     snk_d * (Nt*Nx*Ny*Nz)          +
+                                     src_d * (Nt*Nx*Ny*Nz*4)        +
+                                     snk_c * (Nt*Nx*Ny*Nz*4*4)      +
+                                     snk_f * (Nt*Nx*Ny*Nz*4*4*3)    +
+                                     src_f * (Nt*Nx*Ny*Nz*4*4*3*Nf);
                 }
               }
             }
@@ -152,7 +136,7 @@ public:
     // techically, we should allocate a temporary buffer and extract the components from
     // the struct one-by-one first
     tensor.write(counter, indices.data(), reinterpret_cast<const std::complex<double>*>(&propagator[0]) );
-    sw.elapsed_print("NfPointSourcePropagator fill");
+    sw.elapsed_print("NfSpinDilutedTimeslicePropagator fill");
   }
 
   // by overloading the square bracket operator, we can give convenient access to the underlying
@@ -163,29 +147,28 @@ public:
   }
 
   CTF::Tensor< std::complex<double> > tensor;
-  int src_coords[4];
-  int sizes[NF_PSP_NDIM];
-  int shapes[NF_PSP_NDIM];
+  int src_ts;
+  int sizes[NF_SDTSP_NDIM];
+  int shapes[NF_SDTSP_NDIM];
 
 private:
   const nyom::Core & core;
 
   void init()
   {
-    for( int i = 0; i < NF_PSP_NDIM; ++i ){
+    for( int i = 0; i < NF_SDTSP_NDIM; ++i ){
       shapes[i] = NS;
     }
-    sizes[NF_PSP_DIM_T_SNK] = core.input_node["Nt"].as<int>();
-    sizes[NF_PSP_DIM_X_SNK] = core.input_node["Nx"].as<int>();
-    sizes[NF_PSP_DIM_Y_SNK] = core.input_node["Ny"].as<int>();
-    sizes[NF_PSP_DIM_Z_SNK] = core.input_node["Nz"].as<int>();
-    sizes[NF_PSP_DIM_D_SNK] = 4;
-    sizes[NF_PSP_DIM_D_SRC] = 4;
-    sizes[NF_PSP_DIM_C_SNK] = 3;
-    sizes[NF_PSP_DIM_C_SRC] = 3;
-    sizes[NF_PSP_DIM_F_SNK] = Nf;
-    sizes[NF_PSP_DIM_F_SRC] = Nf;
-    tensor = CTF::Tensor< std::complex<double> >(NF_PSP_NDIM, sizes, shapes, core.geom.get_world(), "NfPointSourcePropagator" );
+    sizes[NF_SDTSP_DIM_T_SNK] = core.input_node["Nt"].as<int>();
+    sizes[NF_SDTSP_DIM_X_SNK] = core.input_node["Nx"].as<int>();
+    sizes[NF_SDTSP_DIM_Y_SNK] = core.input_node["Ny"].as<int>();
+    sizes[NF_SDTSP_DIM_Z_SNK] = core.input_node["Nz"].as<int>();
+    sizes[NF_SDTSP_DIM_D_SNK] = 4;
+    sizes[NF_SDTSP_DIM_D_SRC] = 4;
+    sizes[NF_SDTSP_DIM_C_SNK] = 3;
+    sizes[NF_SDTSP_DIM_F_SNK] = Nf;
+    sizes[NF_SDTSP_DIM_F_SRC] = Nf;
+    tensor = CTF::Tensor< std::complex<double> >(NF_SDTSP_NDIM, sizes, shapes, core.geom.get_world(), "NfSpinDilutedTimeslicePropagator" );
   }
 };
 

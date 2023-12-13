@@ -25,15 +25,11 @@
 #include <tmLQCD.h>
 #include <string.h>
 
-// struct_accessors.h sits in the tmLQCD source directory
-// and contains static inline functions for accessing the individual
-// elements in su3 and spinor structs via colour and spin indices 
-#include <struct_accessors.h>
-
 namespace nyom {
 
 // this enum controls the ordering of the dimensions of the SpinColourPropagator tensor
 // Ther ordering can be adjusted at will by simply adjusting the ordering here
+// however the index computation in the "push" and "fill" methods (if any) needs to be adjusted
 typedef enum SpinColourPropagator_dims_t {
   SCP_DIM_T_SNK = 0,
   SCP_DIM_D_SNK,

@@ -25,11 +25,6 @@
 #include <tmLQCD.h>
 #include <string.h>
 
-// struct_accessors.h sits in the tmLQCD source directory
-// and contains static inline functions for accessing the individual
-// elements in su3 and spinor structs via colour and spin indices 
-#include <struct_accessors.h>
-
 namespace nyom {
 
 typedef enum SpinPropagator_dims_t {

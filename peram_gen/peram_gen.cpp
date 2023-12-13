@@ -25,23 +25,32 @@
 #include "Stopwatch.hpp"
 #include "Functors.hpp"
 
+#include <tmlqcd_config.h>
+
 #include <sstream>
 
 int main(int argc, char ** argv){
   nyom::Core core(argc,argv);
 
-  int Nt  = core.input_node["Nt"].as<int>();
-  int Nx  = core.input_node["Nx"].as<int>();
-  int Ny  = core.input_node["Ny"].as<int>();
-  int Nz  = core.input_node["Nz"].as<int>();
+  const int Nt  = core.input_node["Nt"].as<int>();
+  const int Nx  = core.input_node["Nx"].as<int>();
+  const int Ny  = core.input_node["Ny"].as<int>();
+  const int Nz  = core.input_node["Nz"].as<int>();
 
-  int Nev = core.input_node["Nev"].as<int>();
+  const int lt = core.geom.tmlqcd_lat.T;
+  const int lx = core.geom.tmlqcd_lat.LX;
+  const int ly = core.geom.tmlqcd_lat.LY;
+  const int lz = core.geom.tmlqcd_lat.LZ;
 
-  int conf_start = core.input_node["conf_start"].as<int>();
-  int conf_stride = core.input_node["conf_stride"].as<int>();
-  int conf_end = core.input_node["conf_end"].as<int>(); 
+  const int local_volume = lt*lx*ly*lz;
 
-  std::string ev_path = core.input_node["ev_path"].as<std::string>();
+  const int Nev = core.input_node["Nev"].as<int>();
+
+  const int conf_start = core.input_node["conf_start"].as<int>();
+  const int conf_stride = core.input_node["conf_stride"].as<int>();
+  const int conf_end = core.input_node["conf_end"].as<int>(); 
+
+  const std::string ev_path = core.input_node["ev_path"].as<std::string>();
 
   nyom::Stopwatch sw;
 
@@ -61,10 +70,8 @@ int main(int argc, char ** argv){
                                                /* Nc  */ 3,
                                                core.geom.get_world());
 
-  int64_t local_volume = Nt*Nx*Ny*Nz / core.geom.tmlqcd_mpi.nproc;
-
-  spinor* source = new spinor[local_volume];
-  spinor* propagator = new spinor[local_volume];
+  std::vector<double> source(2*4*3*static_cast<int64_t>(local_volume));
+  std::vector<double> propagator(2*4*3*static_cast<int64_t>(local_volume));
  
   // these two tensors will serve as projectors from the eigensystem
   // to the source spinor
@@ -148,23 +155,25 @@ int main(int argc, char ** argv){
           src_dof["edt"] = one_esrc["e"] * one_dsrc["d"] * one_tsrc["t"];
 
           // reshape source to tmLQCD format into correct source Dirac index
-          src.push(source,
+          src.push(source.data(),
                    /* d_in */ dsrc,
-                   /* t_in */ tsrc,
-                   core);
+                   /* t_in */ tsrc);
 
           sw.reset();
-          invert_quda_direct(reinterpret_cast<double*>(&propagator[0]),
-                             reinterpret_cast<double*>(&source[0]),
+#ifdef TM_USE_QUDA
+          invert_quda_direct(propagator.data(),
+                             source.data(),
                              0);
-          //tmLQCD_invert(reinterpret_cast<double*>(&propagator[0]),
-          //              reinterpret_cast<double*>(&source[0]),
-          //              0, 0);
+#else
+          tmLQCD_invert(propagator.data(),
+                        source.data(),
+                        0, 0);
+#endif
           sw.elapsed_print("Inversion");   
 
           // propagator to tensor (has full complement of indices)
           // 2.5 seconds...
-          prop.fill(propagator, dsrc, tsrc, core);
+          prop.fill(propagator.data(), dsrc, tsrc);
           
           flop_counter.zero();
           sw.reset();
@@ -215,9 +224,6 @@ int main(int argc, char ** argv){
     } // tsrc
     // TODO: PERAMBULATOR I/O
   } // cid
-
-  delete[] source;
-  delete[] propagator;
 
   return 0;
 }

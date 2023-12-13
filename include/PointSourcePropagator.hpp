@@ -25,15 +25,11 @@
 #include <tmLQCD.h>
 #include <string.h>
 
-// struct_accessors.h sits in the tmLQCD source directory
-// and contains static inline functions for accessing the individual
-// elements in su3 and spinor structs via colour and spin indices 
-#include <struct_accessors.h>
-
 namespace nyom {
 
 // this enum controls the ordering of the dimensions of the PointSourcePropagator tensor
 // Ther ordering can be adjusted at will by simply adjusting the ordering here
+// however the index computation in the "push" and "fill" methods (if any) needs to be adjusted
 typedef enum PointSourcePropagator_dims_t {
   PSP_DIM_T_SNK = 0,
   PSP_DIM_X_SNK,
@@ -94,21 +90,21 @@ public:
     // running fastest.
     # pragma omp parallel for
     for(int64_t t = 0; t < lt; ++t){
-      int64_t gt = lt*core.geom.tmlqcd_mpi.proc_coords[0] + t;
+      const int64_t gt = lt*core.geom.tmlqcd_mpi.proc_coords[0] + t;
       for(int64_t x = 0; x < lx; ++x){
-        int64_t gx = lx*core.geom.tmlqcd_mpi.proc_coords[1] + x;
+        const int64_t gx = lx*core.geom.tmlqcd_mpi.proc_coords[1] + x;
         for(int64_t y = 0; y < ly; ++y){
-          int64_t gy = ly*core.geom.tmlqcd_mpi.proc_coords[2] + y;
+          const int64_t gy = ly*core.geom.tmlqcd_mpi.proc_coords[2] + y;
           for(int64_t z = 0; z < lz; ++z){
-            int64_t gz = lz*core.geom.tmlqcd_mpi.proc_coords[3] + z;
+            const int64_t gz = lz*core.geom.tmlqcd_mpi.proc_coords[3] + z;
             for(int64_t snk_d = 0; snk_d < 4; ++snk_d){
               for(int64_t snk_c = 0; snk_c < 3; ++snk_c){
-                int64_t counter = snk_c                                  +
-                                  snk_d *  (3)                           +
-                                  z     *  (3*4)                         +
-                                  y     *  (3*4*lz)                      +
-                                  x     *  (3*4*lz*ly)                   +
-                                  t     *  (3*4*lz*ly*lx);
+                const int64_t counter = snk_c                                  +
+                                        snk_d *  (3)                           +
+                                        z     *  (3*4)                         +
+                                        y     *  (3*4*lz)                      +
+                                        x     *  (3*4*lz*ly)                   +
+                                        t     *  (3*4*lz*ly*lx);
 
                 indices[counter] = gt                            +
                                    gx    * (Nt)                  +
