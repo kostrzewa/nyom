@@ -73,7 +73,8 @@ class Geometry {
   }
 
   // print tmLQCD process information in order
-  void print_tmLQCD_geometry(){
+  void print_tmLQCD_geometry() const 
+  {
     for(int r = 0; r < tmlqcd_mpi.nproc; ++r){
       MPI_Barrier(nyom_comm);
       if(r == myrank){ 
@@ -89,15 +90,18 @@ class Geometry {
     }
   }
 
-  CTF::World& get_world() const {
+  CTF::World& get_world() const 
+  {
     return *world;
   }
 
-  int get_myrank() const {
+  int get_myrank() const 
+  {
     return myrank;
   }
 
-  int get_Nranks() const {
+  int get_Nranks() const 
+  {
     return Nranks;
   }
 

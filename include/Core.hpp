@@ -149,7 +149,8 @@ class Core {
       file.close();
     }
     
-    void print_usage(void){
+    void print_usage(void) const 
+    {
       if( geom.get_myrank() == 0 ){
         std::cout << "useful usage information" << std::endl;
       }
