@@ -179,10 +179,17 @@ int main(int argc, char ** argv) {
             tmLQCD_full_source_spinor_field_spin_diluted_oet_ts(s0.get(), src_ts, src_d, src_id, cid, seed);
             if( src_flav_idx == UP || src_flav_idx == DOWN ){
               tmLQCD_invert(p0.get(), s0.get(), static_cast<int>(src_flav_idx), 0);
+              if( src_flav_idx == UP ){
+                Sup.fill(p0.get(), src_d);
+              } else {
+                Sdown.fill(p0.get(), src_d);
+              }
             } else {
               memset((void*)s1.get(), 0, spinor_bytes);
               if( src_flav_idx == ND_DOWN ) s0.swap(s1);
               tmLQCD_invert_doublet(p0.get(), p1.get(), s0.get(), s1.get(), 3, 0);
+              S_nd.fill(p0.get(), 0, static_cast<int>(src_flav_idx), src_d);
+              S_nd.fill(p1.get(), 0, static_cast<int>(src_flav_idx), src_d);
             }
           }
         }
