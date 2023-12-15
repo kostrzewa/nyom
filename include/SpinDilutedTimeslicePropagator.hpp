@@ -62,8 +62,6 @@ public:
   // fill the propagator one sink flavour at a time even though the inversion
   // of course produces both
   void fill(double * propagator,
-            const int snk_f,
-            const int src_f,
             const int src_d){
 
     const int Nt = core.input_node["Nt"].as<int>();
