@@ -20,6 +20,15 @@
 #include "Core.hpp"
 #include "Logfile.hpp"
 #include "Stopwatch.hpp"
+#include "h5utils.hpp"
+
+#include "gammas.hpp"
+
+#include "NfSpinDilutedTimeslicePropagator.hpp"
+#include "SpinDilutedTimeslicePropagator.hpp"
+#include "PointSourcePropagator.hpp"
+#include "SpinColourPropagator.hpp"
+#include "MomentumTensor.hpp"
 
 #include <vector>
 #include <iostream>
@@ -31,22 +40,6 @@
 
 #include <cstring>
 
-#include "gammas.hpp"
-
-#include "NfSpinDilutedTimeslicePropagator.hpp"
-#include "SpinDilutedTimeslicePropagator.hpp"
-#include "PointSourcePropagator.hpp"
-#include "SpinColourPropagator.hpp"
-#include "MomentumTensor.hpp"
-
-//extern "C" {
-//#include "global.h"
-//#include "solver/solver_field.h"
-//#include "start.h"
-//#include "io/spinor.h"
-//#include "linalg/convert_eo_to_lexic.h"
-//} // extern "C"
-
 #include <omp.h>
 
 #define printf0 if(core.geom.get_myrank()==0) printf
@@ -54,14 +47,12 @@
 double measureFlopsPerSecond(double local_time, 
                              CTF::Flop_counter& flp,
                              const char* const name,
-                             const int rank,
-                             const int np,
                              const nyom::Core & core)
 {
   double global_time;
   MPI_Allreduce( &local_time, &global_time, 1, MPI_DOUBLE, MPI_SUM, core.geom.get_nyom_comm() );
   int64_t flops = flp.count( core.geom.get_nyom_comm() );
-  double fps = (double)(flops)/(global_time*1e6/np);
+  double fps = (double)(flops)/( (global_time/core.geom.get_Nranks()) * 1.e6 );
   printf0("Performance in '%s': %.6e mflop/s\n", name, fps);
   return fps;
 }
@@ -137,11 +128,16 @@ int main(int argc, char ** argv) {
   nyom::SpinDilutedTimeslicePropagator Sup_conj(core);
   nyom::SpinDilutedTimeslicePropagator Sdown_conj(core);
   
+  nyom::SpinDilutedTimeslicePropagator Sup_fwd(core);
+  nyom::SpinDilutedTimeslicePropagator Sup_bwd(core);
+  nyom::SpinDilutedTimeslicePropagator Sdown_fwd(core);
+  nyom::SpinDilutedTimeslicePropagator Sdown_bwd(core);
+  
   nyom::NfSpinDilutedTimeslicePropagator<2> S_nd(core);
   nyom::NfSpinDilutedTimeslicePropagator<2> S_nd_conj(core);
 
-  nyom::NfSpinDilutedTimeslicePropagator<2> S_nd_snk(core);
-  nyom::NfSpinDilutedTimeslicePropagator<2> S_nd_src(core);
+  nyom::NfSpinDilutedTimeslicePropagator<2> S_nd_fwd(core);
+  nyom::NfSpinDilutedTimeslicePropagator<2> S_nd_bwd(core);
 
   sw.reset();
 
@@ -154,6 +150,9 @@ int main(int argc, char ** argv) {
     } else {
       tmLQCD_read_gauge(cid); 
     }
+    
+    char filename[100];
+    snprintf(filename, 100, "hl_hh_%04d.h5", cid);
 
     for(int src_id = 0; src_id < n_src; src_id++){
       int src_ts;
@@ -170,15 +169,22 @@ int main(int argc, char ** argv) {
       Sdown_conj.set_src_ts(src_ts);
       S_nd.set_src_ts(src_ts);
       S_nd_conj.set_src_ts(src_ts);
-      S_nd_snk.set_src_ts(src_ts);
-      S_nd_src.set_src_ts(src_ts);
+
+      Sup_fwd.set_src_ts(src_ts);
+      Sup_bwd.set_src_ts(src_ts);
+      Sdown_fwd.set_src_ts(src_ts);
+      Sdown_bwd.set_src_ts(src_ts);
+      S_nd_fwd.set_src_ts(src_ts);
+      S_nd_bwd.set_src_ts(src_ts);
 
       for(int src_flav_idx : {UP,DOWN,ND_UP,ND_DOWN} ){
         for(int src_d = 0; src_d < Nd; ++src_d){
           if(!read){
             tmLQCD_full_source_spinor_field_spin_diluted_oet_ts(s0.get(), src_ts, src_d, src_id, cid, seed);
             if( src_flav_idx == UP || src_flav_idx == DOWN ){
-              tmLQCD_invert(p0.get(), s0.get(), static_cast<int>(src_flav_idx), 0);
+              if ( tmLQCD_invert(p0.get(), s0.get(), static_cast<int>(src_flav_idx), 0) != 0 ){
+                throw( std::runtime_error("light inversion failed") );
+              }
               if( src_flav_idx == UP ){
                 Sup.fill(p0.get(), src_d);
               } else {
@@ -187,128 +193,66 @@ int main(int argc, char ** argv) {
             } else {
               memset((void*)s1.get(), 0, spinor_bytes);
               if( src_flav_idx == ND_DOWN ) s0.swap(s1);
-              tmLQCD_invert_doublet(p0.get(), p1.get(), s0.get(), s1.get(), 3, 0);
+              
+              if( tmLQCD_invert_doublet(p0.get(), p1.get(), s0.get(), s1.get(), 2, 0) != 0 ){
+                throw( std::runtime_error("heavy inversion failed") );
+              }
+
               S_nd.fill(p0.get(), 0, static_cast<int>(src_flav_idx), src_d);
-              S_nd.fill(p1.get(), 0, static_cast<int>(src_flav_idx), src_d);
+              S_nd.fill(p1.get(), 1, static_cast<int>(src_flav_idx), src_d);
             }
           }
         }
       }
 
-  //            
+      // transpose colour indices and take complex conjugate for gamma5  hermiticity
+      // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
+      // below
+      sw.reset();
+      Sup_conj["txyzija"] = Sup["txyzija"];
+      Sdown_conj["txyzija"] = Sdown["txyzija"];
+      S_nd_conj["txyzijagf"] = S_nd["txyzijafg"];
+      ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sup_conj["txyzija"]);
+      ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sdown_conj["txyzija"]);
+      ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(S_nd_conj["txyzijafg"]);
+      sw.elapsed_print_and_reset("Complex conjugation");
 
-  //                    
-  //                    tmLQCD_doublet_invert(prop_inv.get(),
-  //      src_spinor.get(),
-  //                                src_flav_idx,
-  //                                0);
+      // perform contractions
+      CTF::Flop_counter flp;
+      CTF::Vector< std::complex<double> > C(Nt,core.geom.get_world());
+      double norm = 1.0/((double)Ns*Ns*Ns);
+      
+      flp.zero();
 
-  //                  if(write){
-  //                    char fname[200];
-  //                    snprintf(fname,
-  //                             200,
-  //                             "source.conf%04d.flav%1d.srct%3d.srcx%3d.srcy%3d.srcz%3d.inverted",
-  //                             core.geom.tmlqcd_lat.nstore,
-  //                             src_flav_idx,
-  //                             src_coords[0],
-  //                             src_coords[1],
-  //                             src_coords[2],
-  //                             src_coords[3]);
-  //                    tmLQCD_write_spinor(prop_inv.get(), fname, 1, 1);
-  //                  }
-  //                
-  //                }else{
-  //                  char fname[200];
-  //                  snprintf(fname,
-  //                           200,
-  //                           "source.conf%04d.flav%1d.srct%3d.srcx%3d.srcy%3d.srcz%3d.inverted",
-  //                           core.geom.tmlqcd_lat.nstore,
-  //                           src_flav_idx,
-  //                           src_coords[0],
-  //                           src_coords[1],
-  //                           src_coords[2],
-  //                           src_coords[3]);
-  //                  tmLQCD_read_spinor(prop_inv.get(), fname, (int)(src_d*Nc+src_c) );
-  //                }
-  //              }
-  //            
-  //              #pragma omp barrier
-  //              #pragma omp single
-  //              {
-  //                printf0("Thread %d switching pointers\n", omp_get_thread_num());
-  //                prop_inv.swap(prop_fill);
-  //              }
-  //            
-  //              if( (nyom_threads == 1) || 
-  //                  (nyom_threads != 1 && omp_get_thread_num() == 1) ){ 
-  //                printf0("Thread %d filling tensor\n", omp_get_thread_num());
-  //                S.fill(prop_fill.get(),
-  //                       src_d,
-  //                       src_c);
-  //              }
-  //            } // OpenMP parallel closing brace
-  //          }
-  //        }
-  //      }
-  //     
- 
-  //    // transpose colour indices and take complex conjugate for gamma5  hermiticity
-  //    // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
-  //    // below
-  //    sw.reset();
-  //    Sconj["txyzijba"] = S["txyzijab"];
-  //    ((CTF::Transform< std::complex<double> >)([](std::complex<double> & s){ s = conj(s); }))(Sconj["txyzijab"]);
-  //    sw.elapsed_print_and_reset("Complex conjugation and colour transpose");
+      std::complex<double>* correl_values;
+      int64_t correl_nval;
 
-  //    // perform contractions
-  //    CTF::Flop_counter flp;
-  //    CTF::Vector< std::complex<double> > C(Nt,core.geom.get_world());
-  //    double norm = 1.0/((double)Ns*Ns*Ns);
-  //    
-  //    flp.zero();
 
-  //    std::complex<double>* correl_values;
-  //    int64_t correl_nval;
-  //    // PP PA AP AA
-  //    for( std::string g_src : {"5", "05"} ){
-  //      for( std::string g_snk : {"5", "05"} ){
+      // PP PA AP AA
+      for( std::string g_src : {"5", "I"} ){
+        for( std::string g_snk : {"5", "I"} ){
 
-  //        Ssrc["txyzijab"] = S["txyziLab"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
-  //        sw.elapsed_print_and_reset("source gamma insertion");
+          Sup_fwd["txyzija"] = Sup["txyziLa"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
+          Sdown_fwd["txyzija"] = Sdown["txyziLa"] * (nyom::g[g_src])["LK"] * (nyom::g[g_snk])["Kj"];
+          S_nd_fwd["txyzijafg"] = S_nd["txyziLafg"] * (nyom::g["5"])["LK"] * (nyom::g[g_snk])["Kj"];
+          sw.elapsed_print_and_reset("source gamma insertion");
 
-  //        Ssnk["txyzijab"] = Sconj["txyzLiab"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
-  //        sw.elapsed_print_and_reset("sink gamma insertion");
+          Sup_bwd["txyzija"] = Sup_conj["txyzLia"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
+          Sdown_bwd["txyzija"] = Sdown_conj["txyziLa"] * (nyom::g["5"])["LK"] * (nyom::g[g_snk])["Kj"];
+          S_nd_bwd["txyzijafg"] = S_nd_conj["txyziLafg"] * (nyom::g["5"])["LK"] * (nyom::g[g_snk])["Kj"];
+          sw.elapsed_print_and_reset("sink gamma insertion");
 
-  //        C["t"] = Ssnk["tXYZIJAB"] * Ssrc["tXYZJIBA"];
-  //        measureFlopsPerSecond(sw.elapsed_print_and_reset("meson 2-pt function").mean,
-  //                              flp, 
-  //                              "meson 2-pt function",
-  //                              core.geom.get_myrank(),
-  //                              core.geom.get_Nranks(),
-  //                              core.geom.get_nyom_comm() );
 
-  //        C.read_all(&correl_nval,&correl_values);
-  //        if(rank==0){
-  //          ofstream correl;
-  //          char fname[200]; 
-  //          snprintf(fname, 200,
-  //                   "pion_2pt_conf%05d_srcidx%03d_srct%03d_srcx%03d_srcy%03d_srcz%03d_snkG%s_srcG%s.txt",
-  //                   cid, src_id,
-  //                   src_coords[0], src_coords[1], src_coords[2], src_coords[3],
-  //                   g_snk.c_str(), g_src.c_str());
-  //          correl.open(fname);
-  //          for(int64_t i = 0; i < correl_nval; ++i){
-  //            correl << i << "\t" << 
-  //              std::setprecision(16) << norm*correl_values[i].real() << "\t" << 
-  //              std::setprecision(16) << norm*correl_values[i].imag() << 
-  //              endl;
-  //          }
-  //          correl.close();
-  //        }
-  //        free(correl_values);
-  //        sw.elapsed_print_and_reset("Correlator I/O");
-  //      }
-  //    }
+          C["t"] = - norm * nyom::g0_sign[g_src] * Sup_bwd["tXYZIJA"] * Sup_fwd["tXYZJIA"];
+          measureFlopsPerSecond(sw.elapsed_print_and_reset("meson 2-pt function").mean,
+                                flp, 
+                                "meson 2-pt function",
+                                core );
+
+          std::list<std::string> path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "u", src_ts);
+          nyom::h5::write_dataset(core, filename, path_list, C);
+        }
+      }
     } // src loop
   } // cid loop
 

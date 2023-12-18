@@ -95,7 +95,7 @@ class Core {
           }
         }
       }
-      sw = new nyom::Stopwatch( geom.get_nyom_comm() );
+      sw.reset( new nyom::Stopwatch( geom.get_nyom_comm() ) );
       MPI_Barrier( geom.get_nyom_comm() );
 
       init_gammas( geom.get_world() );
@@ -105,7 +105,6 @@ class Core {
 
     ~Core(){
       sw->elapsed_print("nyom::Core lifetime");
-      delete sw;
     }
 
     /**
@@ -185,7 +184,7 @@ class Core {
 
     bool initialised;
 
-    nyom::Stopwatch* sw;
+    std::unique_ptr<nyom::Stopwatch> sw;
 };
 
 }
