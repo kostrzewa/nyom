@@ -8,6 +8,8 @@ enable_language(Fortran)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+Include(FetchContent)
+
 # we will collect any libraries that we want to link against to compile
 # main programs in this list which we grow below with list(APPEND nyom_libs [...])
 set(nyom_libs)
@@ -156,13 +158,24 @@ if( QUDA_HOME )
 
 endif()
 
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG        yaml-cpp-0.7.0
+  OVERRIDE_FIND_PACKAGE
+)
+FetchContent_MakeAvailable(yaml-cpp)
+FetchContent_GetProperties(yaml-cpp)
+if(NOT yaml-cpp_POPULATED)
+  FetchContent_Populate(yaml-cpp)
+endif()
+#include(${yaml-cpp_SOURCE_DIR}/yaml-cpp-config.cmake)
 
-
-find_package(yaml-cpp REQUIRED)
-message("Found yaml-cpp -- libs: ${YAML_CPP_LIBRARIES} includes: ${YAML_CPP_INCLUDE_DIR}")
-include_directories(${YAML_CPP_INCLUDE_DIR})
-link_libraries(${YAML_CPP_LIBRARIES})
-list(APPEND nyom_libs "${YAML_CPP_LIBRARIES}")
+#find_package(yaml-cpp REQUIRED)
+#message("Found yaml-cpp -- libs: ${YAML_CPP_LIBRARIES} includes: ${YAML_CPP_INCLUDE_DIR}")
+#include_directories(${YAML_CPP_INCLUDE_DIR})
+#link_libraries(yaml-cpp)
+#list(APPEND nyom_libs "${YAML_CPP_LIBRARIES}")
 
 find_package(LAPACK REQUIRED)
 if( LAPACK_FOUND )
@@ -219,14 +232,19 @@ else()
   message(FATAL_ERROR "HDF5 could not be found!")    
 endif()    
 
-Include(FetchContent)
 
 FetchContent_Declare(
   HighFive
   GIT_REPOSITORY https://github.com/BlueBrain/HighFive.git
   GIT_TAG        v2.8.0
+  OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(HighFive)
+FetchContent_GetProperties(HighFive)
+if(NOT highfive_POPULATED)
+  FetchContent_Populate(HighFive)
+endif()
+#include(${highfive_SOURCE_DIR}/CMake/HighFiveConfig.cmake)
 
 message(STATUS "nyom_libs: ${nyom_libs}")
 
