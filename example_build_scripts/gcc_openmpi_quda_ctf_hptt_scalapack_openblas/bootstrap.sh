@@ -5,15 +5,17 @@ exitcode=0
 
 source load_modules.sh
 
-pushd sources
-./fetch_ctf.sh
-./fetch_hptt.sh
-./fetch_scalapack.sh
-./fetch_lime.sh
-./fetch_lemon.sh
-./fetch_quda.sh
-./fetch_tmlqcd.sh
-popd
+if [[ "x${1}" != "xno" ]]; then
+  pushd sources
+  ./fetch_ctf.sh
+  ./fetch_hptt.sh
+  ./fetch_scalapack.sh
+  ./fetch_lime.sh
+  ./fetch_lemon.sh
+  ./fetch_quda.sh
+  ./fetch_tmlqcd.sh
+  popd
+fi
 
 # prepare the build systems of the libraries that we use
 pushd sources/lime
