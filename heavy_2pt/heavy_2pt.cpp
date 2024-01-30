@@ -31,6 +31,7 @@
 #include "MomentumTensor.hpp"
 #include "HeavyLightCorrelator.hpp"
 #include "HeavyHeavyCorrelator.hpp"
+#include "Shifts.hpp"
 
 #include <vector>
 #include <iostream>
@@ -165,6 +166,8 @@ int main(int argc, char ** argv) {
       }
       MPI_Bcast(&src_ts, 1, MPI_INT, 0, core.geom.get_nyom_comm());
 
+      nyom::SimpleShift tshift(core, Nt, -src_ts, 0.0);
+
       Sup.set_src_ts(src_ts);
       Sdown.set_src_ts(src_ts);
       Sup_conj.set_src_ts(src_ts);
@@ -250,27 +253,33 @@ int main(int argc, char ** argv) {
 
 
           C["t"] = - norm * nyom::g0_sign[g_src] * Sup_bwd["tXYZIJA"] * Sup_fwd["tXYZJIA"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "u", src_ts);
+          C["t"] = tshift["tT"] * C["T"];
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "u", 0);
           nyom::h5::write_dataset(core, filename, path_list, C);
           
           C["t"] = - norm * nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * Sdown_fwd["tXYZJIA"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "d", src_ts);
+          C["t"] = tshift["tT"] * C["T"];
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "d", 0);
           nyom::h5::write_dataset(core, filename, path_list, C);
 
           C["t"] = -norm * nyom::g0_sign[g_src] * Sup_bwd["tXYZIJA"] * Sdown_fwd["tXYZJIA"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "u", src_ts);
+          C["t"] = tshift["tT"] * C["T"];
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "u", 0);
           nyom::h5::write_dataset(core, filename, path_list, C);
 
           C["t"] = -norm * nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * Sup_fwd["tXYZJIA"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "d", src_ts);
+          C["t"] = tshift["tT"] * C["T"];
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "d", 0);
           nyom::h5::write_dataset(core, filename, path_list, C);
 
           C_lhh["fgsrt"] = - norm * nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * S_nd_fwd["tXYZJIAfg"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "d", src_ts);
+          C_lhh["fgrst"] = tshift["tT"] * C_lhh["fgrsT"];
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "d", 0);
           nyom::h5::write_dataset(core, filename, path_list, C_lhh.tensor);
           
           C_ffhh["fghisrt"] = - norm * nyom::g0_sign[g_src] * S_nd_bwd["tXYZIJAfg"] * S_nd_fwd["tXYZJIAhi"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "h", src_ts);
+          C_ffhh["fghirst"] = tshift["tT"] * C_ffhh["fghirsT"];
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "h", 0);
           nyom::h5::write_dataset(core, filename, path_list, C_ffhh.tensor);
         }
       }
