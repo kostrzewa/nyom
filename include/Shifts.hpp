@@ -35,14 +35,16 @@ public:
   SimpleShift(const nyom::Core &core_in,
               const int dim_size_in,
               const int shift_in = 0,
-              const complex<double> phase_angle_in = 0.0):
+              const double phase_angle_in = 0.0,
+              const std::complex<double> scale = std::complex<double>(1.0, 0.0) ):
     core(core_in), dim_size(dim_size_in)
   {
     init();
-    set_shift(shift_in, phase_angle_in);
+    set_shift(shift_in, phase_angle_in, scale);
   }
 
-  void set_shift(const int shift_in, const complex<double> phase_angle_in = 0.0){
+  void set_shift(const int shift_in, const double phase_angle_in = 0.0, 
+                 const std::complex<double> scale = std::complex<double>(1.0, 0.0)){
     shift = shift_in;
     phase_angle = phase_angle_in;
    
@@ -67,7 +69,7 @@ public:
       // via phase_angle, we also directly apply a possible phase factor which might be
       // necessary when working with twisted boundary conditions, for example
       if( r == ( ((c+shift)+dim_size) % dim_size) ){
-        values[i] = std::exp( nyom::imag_unit*phase_angle*static_cast<double>(r) );
+        values[i] = scale * std::exp( nyom::imag_unit*phase_angle*static_cast<double>(r) );
       } else {
         values[i] = 0.0;
       }
