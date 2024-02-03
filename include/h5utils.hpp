@@ -183,13 +183,20 @@ namespace h5 {
       const std::string bwd_flav,
       const int src_ts,
       const std::array<int, 3> src_p = {0,0,0},
-      const std::array<int, 3> snk_p = {0,0,0})
+      const std::array<int, 3> snk_p = {0,0,0},
+      const int sample = 0,
+      const bool inc_sample = false)
   {
     std::list<std::string> path_list;
     char subpath[100];
 
     snprintf(subpath, 100, "%s+-g-%s-g", bwd_flav.c_str(), fwd_flav.c_str());
     path_list.push_back(subpath);
+    
+    if( inc_sample ){
+      snprintf(subpath, 100, "s%d", sample);
+      path_list.push_back(subpath);
+    }
     
     snprintf(subpath, 100, "t%d", src_ts);
     path_list.push_back(subpath);
