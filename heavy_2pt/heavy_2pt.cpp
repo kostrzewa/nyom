@@ -195,7 +195,7 @@ int main(int argc, char ** argv) {
       S_nd_bwd.set_src_ts(src_ts);
 
       //for(int src_flav_idx : {UP,DOWN,ND_UP,ND_DOWN} ){
-      for(int src_flav_idx : {UP,ND_UP,ND_DOWN} ){
+      for(int src_flav_idx : {UP,DOWN,ND_UP,ND_DOWN} ){
         for(int src_d = 0; src_d < Nd; ++src_d){
           if(!read){
             
@@ -233,7 +233,8 @@ int main(int argc, char ** argv) {
         }
       }
 
-      // transpose colour indices and take complex conjugate for gamma5  hermiticity
+      // take complex conjugate here as we are going to employ g5-hermiticity in
+      // building the actual correlation functions
       // the transpose in spin for the gamma_5 S^dag gamma_5 identity will be taken
       // below
       sw.reset();
@@ -261,13 +262,16 @@ int main(int argc, char ** argv) {
       std::list<std::string> path_list;
 
       for( std::string g_src : {"5", "I"} ){
+        Sup_fwd["txyzija"] = Sup["txyziLa"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
+        Sdown_fwd["txyzija"] = Sdown["txyziLa"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
+        S_nd_fwd["txyzijafg"] = S_nd["txyziLafg"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
+        sw.elapsed_print_and_reset("source gamma insertion");
+        
         for( std::string g_snk : {"5", "I"} ){
 
-          Sup_fwd["txyzija"] = Sup["txyziLa"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
-          Sdown_fwd["txyzija"] = Sdown["txyziLa"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
-          S_nd_fwd["txyzijafg"] = S_nd["txyziLafg"] * (nyom::g[g_src])["LK"] * (nyom::g["5"])["Kj"];
-          sw.elapsed_print_and_reset("source gamma insertion");
-
+          // we use the convention here that we keep the light flavour label on the backward
+          // propagator even though the conjugation has technically turned up into down
+          // and vice versa
           // the backward props are the conjugate transpose in spin 
           Sup_bwd["txyzija"] = Sup_conj["txyzLia"] * (nyom::g["5"])["LK"]  * (nyom::g[g_snk])["Kj"];
           Sdown_bwd["txyzija"] = Sdown_conj["txyzLia"] * (nyom::g["5"])["LK"] * (nyom::g[g_snk])["Kj"];
@@ -281,8 +285,8 @@ int main(int argc, char ** argv) {
             C["t"] =  tshift["tT"]  * C["T"];
           else 
             C["t"] =  i_tshift["tT"]  * C["T"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "u", 0);
-          nyom::h5::write_dataset(core, filename, path_list, C);
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "u", 0, {0,0,0}, {0,0,0}, src_id, true);
+          nyom::h5::write_dataset(core, filename, path_list, C); 
           
           // d+-g-d-g == < \bar{u}-g_snk-d  (\bar{u}-g_src-d)+ >
           C["t"] = - norm * nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * Sdown_fwd["tXYZJIA"];
@@ -290,7 +294,7 @@ int main(int argc, char ** argv) {
             C["t"] =  tshift["tT"]  * C["T"];
           else 
             C["t"] =  i_tshift["tT"]  * C["T"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "d", 0);
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "d", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C);
 
           // u+-g-d-g == < \bar{d}-g_snk-d  (\bar{d}-g_src-d)+ >_connected
@@ -299,7 +303,7 @@ int main(int argc, char ** argv) {
             C["t"] =  tshift["tT"]  * C["T"];
           else 
             C["t"] =  i_tshift["tT"]  * C["T"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "u", 0);
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "u", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C);
 
           // d+-g-u-g == < \bar{u}-g_snk-u  (\bar{u}-g_src-u)+ >_connected
@@ -308,7 +312,7 @@ int main(int argc, char ** argv) {
             C["t"] =  tshift["tT"]  * C["T"];
           else 
             C["t"] =  i_tshift["tT"]  * C["T"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "d", 0);
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "d", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C);
 
           // u+-g-h-g == < \bar{d}-g_snk-h  (\bar{d}-g_src-h)+ >
@@ -317,7 +321,16 @@ int main(int argc, char ** argv) {
             C_lhh["fgrst"] = tshift["tT"] * C_lhh["fgrsT"];
           else
             C_lhh["fgrst"] = i_tshift["tT"] * C_lhh["fgrsT"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "u", 0);
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "u", 0, {0,0,0}, {0,0,0}, src_id, true);
+          nyom::h5::write_dataset(core, filename, path_list, C_lhh.tensor);
+          
+          // d+-g-h-g == < \bar{u}-g_snk-h  (\bar{u}-g_src-h)+ >
+          C_lhh["fgsrt"] = - norm * nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * S_nd_fwd["tXYZJIAfg"];
+          if( g_src == g_snk )
+            C_lhh["fgrst"] = tshift["tT"] * C_lhh["fgrsT"];
+          else
+            C_lhh["fgrst"] = i_tshift["tT"] * C_lhh["fgrsT"];
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "d", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C_lhh.tensor);
           
           // h+-g-h-g == < \bar{h}-g_snk-h  (\bar{h}-g_src-h)+ >_connected
@@ -326,7 +339,7 @@ int main(int argc, char ** argv) {
             C_ffhh["fghisrt"] = tshift["tT"] * C_ffhh["fghisrT"];
           else
             C_ffhh["fghisrt"] = i_tshift["tT"] * C_ffhh["fghisrT"];
-          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "h", 0);
+          path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "h", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C_ffhh.tensor);
         }
       }
