@@ -280,65 +280,65 @@ int main(int argc, char ** argv) {
           sw.elapsed_print_and_reset("sink gamma insertion");
 
           // u+-g-u-g == < \bar{d}-g_snk-u  (\bar{d}-g_src-u)+ >
-          C["t"] = - norm * nyom::g0_sign[g_src] * Sup_bwd["tXYZIJA"] * Sup_fwd["tXYZJIA"];
+          C["t"] = nyom::g0_sign[g_src] * Sup_bwd["tXYZIJA"] * Sup_fwd["tXYZJIA"];
           if( g_src == g_snk ) 
-            C["t"] =  tshift["tT"]  * C["T"];
+            C["t"] =  -norm * tshift["tT"]  * C["T"];
           else 
-            C["t"] =  i_tshift["tT"]  * C["T"];
+            C["t"] =  -norm * i_tshift["tT"]  * C["T"];
           path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "u", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C); 
           
           // d+-g-d-g == < \bar{u}-g_snk-d  (\bar{u}-g_src-d)+ >
-          C["t"] = - norm * nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * Sdown_fwd["tXYZJIA"];
+          C["t"] = nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * Sdown_fwd["tXYZJIA"];
           if( g_src == g_snk ) 
-            C["t"] =  tshift["tT"]  * C["T"];
+            C["t"] =  -norm * tshift["tT"]  * C["T"];
           else 
-            C["t"] =  i_tshift["tT"]  * C["T"];
+            C["t"] =  -norm * i_tshift["tT"]  * C["T"];
           path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "d", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C);
 
           // u+-g-d-g == < \bar{d}-g_snk-d  (\bar{d}-g_src-d)+ >_connected
-          C["t"] = -norm * nyom::g0_sign[g_src] * Sup_bwd["tXYZIJA"] * Sdown_fwd["tXYZJIA"];
+          C["t"] = nyom::g0_sign[g_src] * Sup_bwd["tXYZIJA"] * Sdown_fwd["tXYZJIA"];
           if( g_src == g_snk ) 
-            C["t"] =  tshift["tT"]  * C["T"];
+            C["t"] =  -norm * tshift["tT"]  * C["T"];
           else 
-            C["t"] =  i_tshift["tT"]  * C["T"];
+            C["t"] =  -norm * i_tshift["tT"]  * C["T"];
           path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "d", "u", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C);
 
           // d+-g-u-g == < \bar{u}-g_snk-u  (\bar{u}-g_src-u)+ >_connected
-          C["t"] = -norm * nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * Sup_fwd["tXYZJIA"];
+          C["t"] = nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * Sup_fwd["tXYZJIA"];
           if( g_src == g_snk ) 
-            C["t"] =  tshift["tT"]  * C["T"];
+            C["t"] =  -norm * tshift["tT"]  * C["T"];
           else 
-            C["t"] =  i_tshift["tT"]  * C["T"];
+            C["t"] =  -norm * i_tshift["tT"]  * C["T"];
           path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "u", "d", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C);
 
           // u+-g-h-g == < \bar{d}-g_snk-h  (\bar{d}-g_src-h)+ >
-          C_lhh["fgsrt"] = - norm * nyom::g0_sign[g_src] * Sup_bwd["tXYZIJA"] * S_nd_fwd["tXYZJIAfg"];
+          C_lhh["fgsrt"] = nyom::g0_sign[g_src] * Sup_bwd["tXYZIJA"] * S_nd_fwd["tXYZJIAfg"];
           if( g_src == g_snk )
-            C_lhh["fgrst"] = tshift["tT"] * C_lhh["fgrsT"];
+            C_lhh["fgrst"] = -norm * tshift["tT"] * C_lhh["fgrsT"];
           else
-            C_lhh["fgrst"] = i_tshift["tT"] * C_lhh["fgrsT"];
+            C_lhh["fgrst"] = -norm * i_tshift["tT"] * C_lhh["fgrsT"];
           path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "u", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C_lhh.tensor);
           
           // d+-g-h-g == < \bar{u}-g_snk-h  (\bar{u}-g_src-h)+ >
-          C_lhh["fgsrt"] = - norm * nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * S_nd_fwd["tXYZJIAfg"];
+          C_lhh["fgsrt"] = nyom::g0_sign[g_src] * Sdown_bwd["tXYZIJA"] * S_nd_fwd["tXYZJIAfg"];
           if( g_src == g_snk )
-            C_lhh["fgrst"] = tshift["tT"] * C_lhh["fgrsT"];
+            C_lhh["fgrst"] = -norm * tshift["tT"] * C_lhh["fgrsT"];
           else
-            C_lhh["fgrst"] = i_tshift["tT"] * C_lhh["fgrsT"];
+            C_lhh["fgrst"] = -norm * i_tshift["tT"] * C_lhh["fgrsT"];
           path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "d", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C_lhh.tensor);
           
           // h+-g-h-g == < \bar{h}-g_snk-h  (\bar{h}-g_src-h)+ >_connected
-          C_ffhh["fghisrt"] = - norm * nyom::g0_sign[g_src] * S_nd_bwd["tXYZIJAfg"] * S_nd_fwd["tXYZJIAhi"];
+          C_ffhh["fghisrt"] = nyom::g0_sign[g_src] * S_nd_bwd["tXYZIJAfg"] * S_nd_fwd["tXYZJIAhi"];
           if( g_src == g_snk )
-            C_ffhh["fghisrt"] = tshift["tT"] * C_ffhh["fghisrT"];
+            C_ffhh["fghisrt"] = -norm * tshift["tT"] * C_ffhh["fghisrT"];
           else
-            C_ffhh["fghisrt"] = i_tshift["tT"] * C_ffhh["fghisrT"];
+            C_ffhh["fghisrt"] = -norm * i_tshift["tT"] * C_ffhh["fghisrT"];
           path_list = nyom::h5::make_os_meson_2pt_path_list(g_src, g_snk, "h", "h", 0, {0,0,0}, {0,0,0}, src_id, true);
           nyom::h5::write_dataset(core, filename, path_list, C_ffhh.tensor);
         }
